@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "test": "node --test test/*.test.mjs",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "import-eatlist": "node scripts/import-eatlist.mjs"
   }
 }

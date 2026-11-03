@@ -65,6 +65,18 @@ npm test           # YAML, model and ZIP tests (node --test)
 npm run icons      # redraw the icons in icons/
 ```
 
+## Bring over data from Eatlist
+
+On a Mac with the Eatlist app installed (and synced from iCloud):
+
+```bash
+npm run import-eatlist                # writes ~/Downloads/eatlist-for-eats-<date>.zip
+```
+
+Then import that ZIP in the app (Settings → Import ZIP). The script only reads
+a copy of Eatlist's database. The ZIP holds your personal data: keep it out of
+this public repo (`*.zip` is git-ignored).
+
 ## Install on a phone
 
 Installing and offline mode need HTTPS, so the app has to be hosted. Any static

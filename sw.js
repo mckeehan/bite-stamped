@@ -3,7 +3,7 @@
 // the background, so a new version shows up on the next launch.
 // Bump VERSION when the list of files changes.
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `eats-${VERSION}`;
 const FILES = [
   './',
