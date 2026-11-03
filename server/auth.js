@@ -87,7 +87,7 @@ export function createAuth({ storage, config, sendCode }) {
 
   function cookie(value, url, maxAge) {
     const secure = url.protocol === 'https:' ? '; Secure' : '';
-    return `${COOKIE}=${value}; Path=/api/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure}`;
+    return `${COOKIE}=${value}; Path=${config.basePath || ''}/api/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure}`;
   }
 
   return { start, verify, logout, currentUser };

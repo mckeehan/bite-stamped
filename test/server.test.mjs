@@ -166,3 +166,24 @@ test('paths are limited to the app folders', () => {
     assert.ok(!validPath(bad), bad);
   }
 });
+
+test('BASE_PATH: everything lives below it', async () => {
+  const srv = testServer({ basePath: '/bites' });
+  const f = deviceFetch(srv.app);
+
+  for (const path of ['/bites', '/']) {
+    const res = await f(path);
+    assert.equal(res.status, 301);
+    assert.equal(res.headers.get('Location'), '/bites/');
+  }
+  assert.match(await (await f('/bites/')).text(), /<title>Bite-Stamped<\/title>/);
+  assert.equal((await f('/bites/js/sync.js')).status, 200);
+  assert.equal((await f('/js/sync.js')).status, 404);
+  assert.equal((await f('/bitesx/js/sync.js')).status, 404);
+  assert.equal((await f('/api/changes')).status, 404);
+
+  await post(f, '/bites/api/auth/start', { email: 'me@example.com' });
+  const res = await post(f, '/bites/api/auth/verify', { email: 'me@example.com', code: srv.codes.get('me@example.com') });
+  assert.match(res.headers.get('Set-Cookie'), /Path=\/bites\/api\//);
+  assert.equal((await f('/bites/api/changes')).status, 200);
+});

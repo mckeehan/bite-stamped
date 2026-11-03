@@ -160,3 +160,20 @@ test('after a server is replaced, devices upload their copy again', async () => 
   await b.sync.sync();
   assert.equal((await read(b.store, 'restaurants/r.md')).notes, 'From A');
 });
+
+test('sync works when the app is served below a path', async () => {
+  const srv = testServer({ basePath: '/bites' });
+  const make = async () => {
+    const store = memoryStore();
+    const sync = createSync({ store, fetch: deviceFetch(srv.app), base: '/bites' });
+    await sync.init();
+    await sync.sendCode('me@example.com');
+    await sync.verify('me@example.com', srv.codes.get('me@example.com'));
+    return { store, sync };
+  };
+  const a = await make();
+  await write(a.store, newRestaurant({ path: 'restaurants/s.md', name: 'S' }));
+  await a.sync.sync();
+  const b = await make();
+  assert.deepEqual(b.store.live(), ['restaurants/s.md']);
+});

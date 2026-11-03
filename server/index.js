@@ -15,10 +15,17 @@ const config = {
   allowedEmails: String(env.ALLOWED_EMAILS || '').split(',').map(normalizeEmail).filter(Boolean),
   smtpUrl: env.SMTP_URL || '',
   mailFrom: env.MAIL_FROM || '',
-  // Behind a reverse proxy (Caddy, nginx, Tailscale serve): trust its
+  // Behind a reverse proxy (Apache, Caddy, nginx, Tailscale serve): trust its
   // X-Forwarded-Proto/-Host/-For headers.
   trustProxy: env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true',
+  // Serve the app below a path, e.g. /bites for https://example.com/bites/.
+  basePath: String(env.BASE_PATH || '').replace(/\/+$/, ''),
 };
+
+if (config.basePath && !/^(\/[\w.-]+)+$/.test(config.basePath)) {
+  console.error(`BASE_PATH must look like /bites (got "${env.BASE_PATH}").`);
+  process.exit(1);
+}
 
 if (config.smtpUrl && !config.mailFrom) {
   console.error('SMTP_URL is set, so MAIL_FROM (the sender address) is needed too.');
@@ -64,7 +71,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(`[bite-stamped] serving on http://${config.host}:${config.port} · data in ${config.dataDir}`);
+  console.log(`[bite-stamped] serving on http://${config.host}:${config.port}${config.basePath}/ · data in ${config.dataDir}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

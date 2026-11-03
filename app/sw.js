@@ -1,10 +1,12 @@
 // Keeps the app itself available offline. Data never passes through here:
-// it lives in IndexedDB, and the sync API (/api/) always goes to the network.
+// it lives in IndexedDB, and the sync API always goes to the network.
 // App files are served from the cache and refreshed in the background, so a
 // new version shows up on the next launch. Bump VERSION on every release.
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `bite-stamped-${VERSION}`;
+// The sync API sits next to this file (e.g. /bites/api/ when served below /bites).
+const API_PATH = new URL('api/', self.registration.scope).pathname;
 const FILES = [
   './',
   'index.html',
@@ -41,7 +43,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
-  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith(API_PATH)) return;
 
   const key = req.mode === 'navigate' ? './' : req;
   event.respondWith(

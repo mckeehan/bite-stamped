@@ -78,6 +78,7 @@ Settings (in `.env` or the environment):
 | `ALLOWED_EMAILS` | Comma-separated addresses that may sign in. Removing an address ends its sessions. |
 | `SMTP_URL`, `MAIL_FROM` | Email for sign-in codes: `smtps://user:pass@host:465` (TLS) or `smtp://user:pass@host:587` (STARTTLS). URL-encode `@` in user names as `%40`. Without `SMTP_URL`, codes are printed in the server log. |
 | `TRUST_PROXY` | `1` behind a reverse proxy, so the server sees the real `https://` address and client IPs. |
+| `BASE_PATH` | Serve the app below a path of an existing site, e.g. `/bites` for `https://example.com/bites/`. The proxy must pass the full path through. Default: the site root. |
 
 For Gmail, use an [app password](https://support.google.com/accounts/answer/185833)
 with `smtps://you%40gmail.com:app-password@smtp.gmail.com:465`.
@@ -111,6 +112,41 @@ Installing the app and offline mode need HTTPS. Two easy ways:
   ```
 
 Set `TRUST_PROXY=1` in both cases.
+
+### Below a path of an existing Apache site
+
+For example `https://ki4hdu.com/bites/`. In `.env`:
+
+```
+HOST=127.0.0.1
+PORT=8080
+TRUST_PROXY=1
+BASE_PATH=/bites
+```
+
+In the site's existing `<VirtualHost *:443>` block (needs `mod_proxy`,
+`mod_proxy_http` and `mod_headers`; on Debian/Ubuntu
+`sudo a2enmod proxy proxy_http headers`):
+
+```apache
+RedirectMatch 301 ^/bites$ /bites/
+<Location "/bites/">
+    ProxyPass        "http://127.0.0.1:8080/bites/"
+    ProxyPassReverse "http://127.0.0.1:8080/bites/"
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    # Only Apache's own forwarding headers should reach the app.
+    RequestHeader unset X-Forwarded-For
+    RequestHeader unset X-Forwarded-Host
+</Location>
+```
+
+Then `sudo apachectl configtest` and reload Apache. Everything stays below
+`/bites/`: the pages, the API (`/bites/api/`), the session cookie and the
+offline cache. Note that the app then shares its origin with the rest of the
+site: scripts on other pages of that site could read its local data and use
+its API. That is fine for a site you control; otherwise give the app its own
+subdomain.
 
 ### Run it as a service
 

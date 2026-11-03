@@ -69,8 +69,8 @@ export function createApp(config) {
   const files = createFiles({ storage });
   const limitSignIn = rateLimiter(20, 60 * 60_000);
 
-  async function api(request, url, ip) {
-    const { pathname } = url;
+  // `pathname` is the path inside the app, without BASE_PATH.
+  async function api(request, url, ip, pathname) {
     const method = request.method;
     if (method !== 'GET' && method !== 'HEAD') checkSameOrigin(request, url);
 
@@ -92,8 +92,8 @@ export function createApp(config) {
     throw new HttpError(404, { error: 'Not found' });
   }
 
-  async function serveStatic(url) {
-    let path = decodeURIComponent(url.pathname);
+  async function serveStatic(pathname) {
+    let path = decodeURIComponent(pathname);
     if (path.endsWith('/')) path += 'index.html';
     const file = normalize(join(APP_DIR, path));
     if (!file.startsWith(APP_DIR) || file.split(sep).some((part) => part.startsWith('.'))) return notFound();
@@ -106,21 +106,31 @@ export function createApp(config) {
     }
   }
 
-  async function handle(request, ip = '') {
-    const url = new URL(request.url);
-    let response;
-    if (url.pathname.startsWith('/api/')) {
+  // With BASE_PATH (e.g. /bites) the whole app lives below it, so it can share
+  // a site with other things behind a reverse proxy that passes the full path.
+  const base = config.basePath || '';
+
+  async function route(request, url, ip) {
+    let pathname = url.pathname;
+    if (base) {
+      if (pathname === base || pathname === '/') return redirect(`${base}/`);
+      if (!pathname.startsWith(`${base}/`)) return notFound();
+      pathname = pathname.slice(base.length);
+    }
+    if (pathname.startsWith('/api/')) {
       try {
-        response = await api(request, url, ip);
+        return await api(request, url, ip, pathname);
       } catch (e) {
         if (!(e instanceof HttpError)) console.error(e);
-        response = e instanceof HttpError ? json(e.body, e.status) : json({ error: 'Server error' }, 500);
+        return e instanceof HttpError ? json(e.body, e.status) : json({ error: 'Server error' }, 500);
       }
-    } else if (request.method === 'GET' || request.method === 'HEAD') {
-      response = await serveStatic(url);
-    } else {
-      response = new Response('Method not allowed', { status: 405 });
     }
+    if (request.method === 'GET' || request.method === 'HEAD') return serveStatic(pathname);
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  async function handle(request, ip = '') {
+    const response = await route(request, new URL(request.url), ip);
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
     return response;
   }
@@ -129,6 +139,7 @@ export function createApp(config) {
 }
 
 const notFound = () => new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
+const redirect = (location) => new Response(null, { status: 301, headers: { Location: location } });
 
 // Writes must come from the app itself: a custom header (which other sites
 // cannot send without a CORS preflight, which this server never allows) and,

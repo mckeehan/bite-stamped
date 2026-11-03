@@ -654,8 +654,12 @@ async function renderSettings() {
 
 // --- sync ---
 
+// The app may live below a path (e.g. /bites/); the API sits next to index.html.
+const apiBase = new URL('.', location.href).pathname.replace(/\/$/, '');
+
 const sync = createSync({
   store,
+  base: apiBase,
   onRemoteChange: () => refreshAfterRemoteChange(),
   onState: () => {
     const badge = $('#syncBadge');
