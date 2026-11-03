@@ -3,8 +3,8 @@
 // App files are served from the cache and refreshed in the background, so a
 // new version shows up on the next launch. Bump VERSION on every release.
 
-const VERSION = 'v4';
-const CACHE = `eats-${VERSION}`;
+const VERSION = 'v5';
+const CACHE = `bite-stamped-${VERSION}`;
 const FILES = [
   './',
   'index.html',
@@ -33,7 +33,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('eats-') && k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('bite-stamped-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });

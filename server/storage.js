@@ -1,9 +1,9 @@
 // Everything the server keeps, under one data folder:
-//   eats.sqlite        file index, change counter, login codes, sessions
-//   versions/<path>/<rev>  every version of every file (the backup history)
-//   files/<path>       the current version of each file, as a plain folder
-//                      you can back up or browse (read-only: edits there
-//                      are not synced)
+//   bite-stamped.sqlite     file index, change counter, login codes, sessions
+//   versions/<path>/<rev>   every version of every file (the backup history)
+//   files/<path>            the current version of each file, as a plain folder
+//                           you can back up or browse (read-only: edits there
+//                           are not synced)
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync, linkSync, copyFileSync, rmSync, existsSync, createReadStream, statSync } from 'node:fs';
@@ -14,7 +14,7 @@ const MIGRATIONS = new URL('../migrations/', import.meta.url);
 
 export function openStorage(dataDir) {
   mkdirSync(dataDir, { recursive: true });
-  const db = new DatabaseSync(join(dataDir, 'eats.sqlite'));
+  const db = new DatabaseSync(join(dataDir, 'bite-stamped.sqlite'));
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;');
   migrate(db);
 

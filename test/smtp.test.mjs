@@ -34,17 +34,17 @@ function fakeSmtp({ starttls = false, authOk = true } = {}) {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port, received })));
 }
 
-const mail = { from: 'eats@example.com', fromName: 'Eats', to: 'me@example.com', subject: 'Eats sign-in code: 123456', text: 'Code 123456\n.\nend' };
+const mail = { from: 'bite-stamped@example.com', fromName: 'Bite-Stamped', to: 'me@example.com', subject: 'Bite-Stamped sign-in code: 123456', text: 'Code 123456\n.\nend' };
 
 test('sends a message with login', async () => {
   const { server, port, received } = await fakeSmtp();
   try {
     await sendMail(`smtp://user%40x:p%40ss@localhost:${port}`, mail);
     assert.equal(received.commands[1], `AUTH PLAIN ${Buffer.from('\0user@x\0p@ss').toString('base64')}`);
-    assert.ok(received.commands.includes('MAIL FROM:<eats@example.com>'));
+    assert.ok(received.commands.includes('MAIL FROM:<bite-stamped@example.com>'));
     assert.ok(received.commands.includes('RCPT TO:<me@example.com>'));
-    assert.match(received.data, /^From: Eats <eats@example.com>$/m);
-    assert.match(received.data, /^Subject: Eats sign-in code: 123456$/m);
+    assert.match(received.data, /^From: Bite-Stamped <bite-stamped@example.com>$/m);
+    assert.match(received.data, /^Subject: Bite-Stamped sign-in code: 123456$/m);
     assert.match(received.data, /^\.\.$/m); // a lone dot in the text is escaped
   } finally {
     server.close();

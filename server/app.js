@@ -1,4 +1,4 @@
-// The Eats server as a function from a web Request to a Response: the app's
+// The Bite-Stamped server as a function from a web Request to a Response: the app's
 // static files plus the sync API under /api/. server/index.js plugs it into
 // node:http; the tests call it directly.
 
@@ -39,14 +39,14 @@ const SECURITY_HEADERS = {
 // Codes go by email when SMTP is set up; otherwise they are written to the log.
 function codeSender(config) {
   if (!config.smtpUrl) {
-    return async (email, code) => console.log(`[eats] sign-in code for ${email}: ${code}`);
+    return async (email, code) => console.log(`[bite-stamped] sign-in code for ${email}: ${code}`);
   }
   return (email, code) => sendMail(config.smtpUrl, {
     from: config.mailFrom,
-    fromName: 'Eats',
+    fromName: 'Bite-Stamped',
     to: email,
-    subject: `Eats sign-in code: ${code}`,
-    text: `Your sign-in code for Eats is ${code}\n\nIt is valid for 10 minutes. If you did not ask for it, ignore this email.\n`,
+    subject: `Bite-Stamped sign-in code: ${code}`,
+    text: `Your sign-in code for Bite-Stamped is ${code}\n\nIt is valid for 10 minutes. If you did not ask for it, ignore this email.\n`,
   });
 }
 
@@ -135,7 +135,7 @@ const notFound = () => new Response('Not found', { status: 404, headers: { 'Cont
 // when the browser sends one, a matching Origin.
 function checkSameOrigin(request, url) {
   const origin = request.headers.get('Origin');
-  if (request.headers.get('X-Eats') !== '1' || (origin && origin !== url.origin)) {
+  if (request.headers.get('X-Bite-Stamped') !== '1' || (origin && origin !== url.origin)) {
     throw new HttpError(403, { error: 'Forbidden' });
   }
 }

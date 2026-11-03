@@ -7,7 +7,7 @@
 // knows about stays behind as a tombstone (`deleted`) until the deletion is
 // synced. The `meta` table holds sync state such as the change cursor.
 
-const DB_NAME = 'eats';
+const DB_NAME = 'bite-stamped';
 const STORE = 'files';
 const META = 'meta';
 let dbPromise;

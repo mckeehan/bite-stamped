@@ -104,7 +104,7 @@ export async function sendMail(url, mail) {
 
   try {
     await expect([220], 'greeting');
-    let ehlo = await command('EHLO eats.local', [250], 'EHLO');
+    let ehlo = await command('EHLO bite-stamped.local', [250], 'EHLO');
 
     if (!implicitTLS) {
       const canTLS = ehlo.lines.some((l) => /^250[- ]STARTTLS\b/i.test(l));
@@ -115,7 +115,7 @@ export async function sendMail(url, mail) {
         socket.setTimeout(TIMEOUT, () => socket.destroy(new Error('SMTP timeout')));
         await new Promise((resolve, reject) => { socket.once('secureConnect', resolve); socket.once('error', reject); });
         r = reader(socket);
-        ehlo = await command('EHLO eats.local', [250], 'EHLO');
+        ehlo = await command('EHLO bite-stamped.local', [250], 'EHLO');
       } else if (!isLocal(host) && !u.searchParams.has('insecure')) {
         throw new Error(`${host} does not offer STARTTLS; use smtps:// or add ?insecure`);
       }

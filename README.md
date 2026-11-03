@@ -1,4 +1,4 @@
-# Eats – restaurant journal
+# Bite-Stamped – restaurant journal
 
 A private restaurant journal that runs in the browser, installs on a phone's
 Home Screen and works offline. Signed-in devices sync with each other through
@@ -62,8 +62,8 @@ same path are replaced, everything else is kept (and then synced).
 Needs Node.js 22.13 or newer (it uses the built-in `node:sqlite`).
 
 ```bash
-git clone https://github.com/mckeehan/eatlist-web.git
-cd eatlist-web
+git clone https://github.com/mckeehan/bite-stamped.git
+cd bite-stamped
 cp .env.example .env      # then edit .env
 npm start                 # http://127.0.0.1:8080
 npm test                  # all tests, including two devices syncing
@@ -85,13 +85,13 @@ with `smtps://you%40gmail.com:app-password@smtp.gmail.com:465`.
 ### What is in `DATA_DIR`
 
 ```
-eats.sqlite              file index, change counter, login codes, sessions
+bite-stamped.sqlite      file index, change counter, login codes, sessions
 versions/<path>/<rev>    every version of every file: the backup history
 files/<path>             the current Markdown and images as plain files
 ```
 
 Back up the whole folder (with the server stopped, or use
-`sqlite3 eats.sqlite ".backup copy.sqlite"` for the database). `files/` is a
+`sqlite3 bite-stamped.sqlite ".backup copy.sqlite"` for the database). `files/` is a
 convenient read-only view: edits made there are not synced; use Export/Import
 in the app for that. Deleting something in the app only marks it deleted, so
 its versions stay in `versions/`.
@@ -105,7 +105,7 @@ Installing the app and offline mode need HTTPS. Two easy ways:
   `https://<machine>.<tailnet>.ts.net` for your devices on Tailscale.
 - **Caddy** (public, automatic certificates): a `Caddyfile` with
   ```
-  eats.example.com {
+  bite-stamped.example.com {
     reverse_proxy 127.0.0.1:8080
   }
   ```
@@ -114,36 +114,36 @@ Set `TRUST_PROXY=1` in both cases.
 
 ### Run it as a service
 
-**Linux (systemd)** – `/etc/systemd/system/eats.service`:
+**Linux (systemd)** – `/etc/systemd/system/bite-stamped.service`:
 
 ```ini
 [Unit]
-Description=Eats restaurant journal
+Description=Bite-Stamped restaurant journal
 After=network-online.target
 
 [Service]
-User=eats
-WorkingDirectory=/opt/eatlist-web
+User=bite-stamped
+WorkingDirectory=/opt/bite-stamped
 ExecStart=/usr/bin/node --env-file=.env --disable-warning=ExperimentalWarning server/index.js
 Restart=on-failure
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/opt/eatlist-web/data
+ReadWritePaths=/opt/bite-stamped/data
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Then `sudo systemctl enable --now eats` and `journalctl -u eats -f` for the log.
+Then `sudo systemctl enable --now bite-stamped` and `journalctl -u bite-stamped -f` for the log.
 
-**macOS (launchd)** – `~/Library/LaunchAgents/com.example.eats.plist`:
+**macOS (launchd)** – `~/Library/LaunchAgents/com.example.bite-stamped.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>com.example.eats</string>
-  <key>WorkingDirectory</key><string>/Users/you/eatlist-web</string>
+  <key>Label</key><string>com.example.bite-stamped</string>
+  <key>WorkingDirectory</key><string>/Users/you/bite-stamped</string>
   <key>ProgramArguments</key><array>
     <string>/usr/local/bin/node</string>
     <string>--env-file=.env</string>
@@ -152,12 +152,12 @@ Then `sudo systemctl enable --now eats` and `journalctl -u eats -f` for the log.
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>/Users/you/eatlist-web/data/eats.log</string>
-  <key>StandardErrorPath</key><string>/Users/you/eatlist-web/data/eats.log</string>
+  <key>StandardOutPath</key><string>/Users/you/bite-stamped/data/bite-stamped.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/bite-stamped/data/bite-stamped.log</string>
 </dict></plist>
 ```
 
-Then `launchctl load ~/Library/LaunchAgents/com.example.eats.plist`. Use the
+Then `launchctl load ~/Library/LaunchAgents/com.example.bite-stamped.plist`. Use the
 path of your `node` (`which node`).
 
 To update: `git pull`, then restart the service. Bump `VERSION` in
@@ -185,7 +185,7 @@ installed copies update.
 
 Sign-in: only addresses in `ALLOWED_EMAILS` get a code (valid 10 minutes, five
 tries). A correct code sets an HttpOnly session cookie for a year. Writes also
-need an `X-Eats` header from the same origin; sign-in requests are limited per
+need an `X-Bite-Stamped` header from the same origin; sign-in requests are limited per
 client address; responses carry a strict Content Security Policy.
 
 ## Bring over data from Eatlist
@@ -193,7 +193,7 @@ client address; responses carry a strict Content Security Policy.
 On a Mac with the Eatlist app installed (and synced from iCloud):
 
 ```bash
-npm run import-eatlist                # writes ~/Downloads/eatlist-for-eats-<date>.zip
+npm run import-eatlist                # writes ~/Downloads/eatlist-for-bite-stamped-<date>.zip
 ```
 
 Then import that ZIP in the app (Settings → Import ZIP); it syncs from there.

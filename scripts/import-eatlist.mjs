@@ -1,5 +1,5 @@
 // Converts the data of the Eatlist app (Core Data store of its Mac version)
-// into a ZIP that Eats can import: one Markdown file per restaurant plus photos.
+// into a ZIP that Bite-Stamped can import: one Markdown file per restaurant plus photos.
 // macOS only; needs the `sqlite3` command line tool that ships with macOS.
 //
 //   node scripts/import-eatlist.mjs [output.zip] [path/to/Eatlist_CloudKit.sqlite]
@@ -15,7 +15,7 @@ import { newRestaurant, toMarkdown, uniquePath, mediaDir, today } from '../app/j
 import { createZip } from '../app/js/zip.js';
 
 const DEFAULT_STORE = join(homedir(), 'Library/Containers/yqiang.Eatlist/Data/Library/Application Support/Eatlist/Eatlist_CloudKit.sqlite');
-const output = resolve(process.argv[2] || join(homedir(), 'Downloads', `eatlist-for-eats-${today()}.zip`));
+const output = resolve(process.argv[2] || join(homedir(), 'Downloads', `eatlist-for-bite-stamped-${today()}.zip`));
 const store = resolve(process.argv[3] || DEFAULT_STORE);
 const externalData = join(dirname(store), `.${basename(store, '.sqlite')}_SUPPORT`, '_EXTERNAL_DATA');
 

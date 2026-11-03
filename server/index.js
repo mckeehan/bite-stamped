@@ -1,4 +1,4 @@
-// Starts the Eats server: `npm start` (node --env-file-if-exists=.env server/index.js)
+// Starts the Bite-Stamped server: `npm start` (node --env-file-if-exists=.env server/index.js)
 // Settings come from environment variables or .env; see README.md.
 
 import { createServer } from 'node:http';
@@ -24,8 +24,8 @@ if (config.smtpUrl && !config.mailFrom) {
   console.error('SMTP_URL is set, so MAIL_FROM (the sender address) is needed too.');
   process.exit(1);
 }
-if (!config.allowedEmails.length) console.warn('[eats] ALLOWED_EMAILS is empty: nobody can sign in to sync.');
-console.log(`[eats] sign-in codes go ${config.smtpUrl ? `by email via ${new URL(config.smtpUrl).hostname}` : 'to this log (no SMTP_URL set)'}`);
+if (!config.allowedEmails.length) console.warn('[bite-stamped] ALLOWED_EMAILS is empty: nobody can sign in to sync.');
+console.log(`[bite-stamped] sign-in codes go ${config.smtpUrl ? `by email via ${new URL(config.smtpUrl).hostname}` : 'to this log (no SMTP_URL set)'}`);
 
 const app = createApp(config);
 
@@ -64,7 +64,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(`[eats] serving on http://${config.host}:${config.port} · data in ${config.dataDir}`);
+  console.log(`[bite-stamped] serving on http://${config.host}:${config.port} · data in ${config.dataDir}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

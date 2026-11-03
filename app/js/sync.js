@@ -1,4 +1,4 @@
-// Offline-first sync with the Eats server. The device's own copy is always
+// Offline-first sync with the Bite-Stamped server. The device's own copy is always
 // what the app shows; this module, whenever it can reach the server,
 //   1. uploads files changed here (each based on the version it last saw;
 //      when someone else changed it first, the two versions are merged), then
@@ -27,7 +27,7 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
     const res = await doFetch(base + path, {
       credentials: 'same-origin',
       ...opts,
-      headers: { 'X-Eats': '1', ...(opts.headers || {}) },
+      headers: { 'X-Bite-Stamped': '1', ...(opts.headers || {}) },
     });
     if (res.status === 401) throw new SignedOut();
     return res;

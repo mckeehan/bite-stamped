@@ -8,7 +8,7 @@ import { fileDate } from './images.js';
 import * as store from './store.js';
 import { createSync } from './sync.js';
 
-const APP_NAME = 'Eats';
+const APP_NAME = 'Bite-Stamped';
 const main = document.getElementById('main');
 const sheet = document.getElementById('sheet');
 
@@ -620,7 +620,7 @@ async function renderSettings() {
   });
   $('#export').addEventListener('click', async () => {
     const blob = await repo.exportZip();
-    const name = `eats-${today()}.zip`;
+    const name = `bite-stamped-${today()}.zip`;
     const file = new File([blob], name, { type: 'application/zip' });
     if (navigator.canShare?.({ files: [file] }) && matchMedia('(pointer: coarse)').matches) {
       try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === 'AbortError') return; }

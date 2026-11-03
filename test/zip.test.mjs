@@ -20,7 +20,7 @@ test('reads back what it writes', async () => {
 });
 
 test('the system unzip accepts our archives, and we read deflated ones', async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), 'eats-zip-'));
+  const dir = mkdtempSync(join(tmpdir(), 'bite-stamped-zip-'));
   const ours = join(dir, 'ours.zip');
   writeFileSync(ours, new Uint8Array(await (await createZip([{ path: 'a/b.md', data: 'hello' }])).arrayBuffer()));
   try {

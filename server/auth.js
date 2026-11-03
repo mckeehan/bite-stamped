@@ -5,7 +5,7 @@
 import { randomInt } from 'node:crypto';
 import { json, readJSON, sha256, randomToken, HttpError } from './http.js';
 
-const COOKIE = 'eats_session';
+const COOKIE = 'bite_stamped_session';
 const CODE_TTL = 10 * 60_000;
 const RESEND_AFTER = 60_000;
 const MAX_ATTEMPTS = 5;
@@ -39,7 +39,7 @@ export function createAuth({ storage, config, sendCode }) {
       await sendCode(email, code);
     } catch (e) {
       storage.run('DELETE FROM login_codes WHERE email = ?', email);
-      console.error(`[eats] could not send the sign-in email to ${email}:`, e.message);
+      console.error(`[bite-stamped] could not send the sign-in email to ${email}:`, e.message);
       throw new HttpError(502, { error: 'The sign-in email could not be sent. Try again later.' });
     }
     return answer;

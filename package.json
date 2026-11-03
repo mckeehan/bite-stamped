@@ -1,5 +1,5 @@
 {
-  "name": "eatlist-web",
+  "name": "bite-stamped",
   "version": "0.1.0",
   "private": true,
   "description": "Offline-first restaurant journal for the phone, stored as Markdown files with YAML headers, with a small self-hosted sync server.",

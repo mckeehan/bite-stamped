@@ -6,7 +6,7 @@ import { testServer, deviceFetch } from './helpers.mjs';
 import { validPath } from '../server/files.js';
 import { createApp } from '../server/app.js';
 
-const W = { 'X-Eats': '1', 'Content-Type': 'application/json' };
+const W = { 'X-Bite-Stamped': '1', 'Content-Type': 'application/json' };
 const post = (f, path, body) => f(path, { method: 'POST', headers: W, body: JSON.stringify(body) });
 
 async function signIn(srv, email = 'me@example.com') {
@@ -98,15 +98,15 @@ test('writes need the app header and the same origin', async () => {
   const f = await signIn(srv);
   const put = (headers) => f('/api/files/restaurants/a.md', { method: 'PUT', headers, body: 'x' });
   assert.equal((await put({})).status, 403);
-  assert.equal((await put({ 'X-Eats': '1', Origin: 'https://evil.example' })).status, 403);
-  assert.equal((await put({ 'X-Eats': '1', Origin: 'https://eats.test' })).status, 200);
+  assert.equal((await put({ 'X-Bite-Stamped': '1', Origin: 'https://evil.example' })).status, 403);
+  assert.equal((await put({ 'X-Bite-Stamped': '1', Origin: 'https://bite-stamped.test' })).status, 200);
 });
 
 test('files: create, read, conflict, delete, change feed, files on disk', async () => {
   const srv = testServer();
   const f = await signIn(srv);
   const put = (path, body, rev) => f(`/api/files/${path}`, {
-    method: 'PUT', headers: { 'X-Eats': '1', 'Content-Type': 'text/markdown', ...(rev ? { 'If-Match': `"${rev}"` } : {}) }, body,
+    method: 'PUT', headers: { 'X-Bite-Stamped': '1', 'Content-Type': 'text/markdown', ...(rev ? { 'If-Match': `"${rev}"` } : {}) }, body,
   });
 
   const r1 = await (await put('restaurants/a.md', 'one')).json();
@@ -124,7 +124,7 @@ test('files: create, read, conflict, delete, change feed, files on disk', async 
   assert.equal(readFileSync(join(srv.dataDir, 'files/restaurants/a.md'), 'utf8'), 'two');
 
   await put('media/a/x.jpg', 'img');
-  const del = await f('/api/files/restaurants/a.md', { method: 'DELETE', headers: { 'X-Eats': '1', 'If-Match': `"${r2.rev}"` } });
+  const del = await f('/api/files/restaurants/a.md', { method: 'DELETE', headers: { 'X-Bite-Stamped': '1', 'If-Match': `"${r2.rev}"` } });
   assert.equal(del.status, 200);
   assert.equal((await f('/api/files/restaurants/a.md')).status, 404);
   assert.ok(!existsSync(join(srv.dataDir, 'files/restaurants/a.md')));
@@ -139,14 +139,14 @@ test('large uploads are refused', async () => {
   const srv = testServer();
   const f = await signIn(srv);
   const big = new Uint8Array(25 * 1024 * 1024 + 1);
-  const res = await f('/api/files/media/a/big.jpg', { method: 'PUT', headers: { 'X-Eats': '1' }, body: big });
+  const res = await f('/api/files/media/a/big.jpg', { method: 'PUT', headers: { 'X-Bite-Stamped': '1' }, body: big });
   assert.equal(res.status, 413);
 });
 
 test('data survives a restart', async () => {
   const srv = testServer();
   const f = await signIn(srv);
-  await f('/api/files/restaurants/k.md', { method: 'PUT', headers: { 'X-Eats': '1' }, body: 'kept' });
+  await f('/api/files/restaurants/k.md', { method: 'PUT', headers: { 'X-Bite-Stamped': '1' }, body: 'kept' });
   srv.app.close();
   srv.app.close = () => {}; // already closed; the cleanup hook calls it again
   const again = createApp(srv.config);

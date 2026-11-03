@@ -9,7 +9,7 @@ import { after } from 'node:test';
 import { createApp } from '../server/app.js';
 
 export function testServer(overrides = {}) {
-  const dataDir = mkdtempSync(join(tmpdir(), 'eats-test-'));
+  const dataDir = mkdtempSync(join(tmpdir(), 'bite-stamped-test-'));
   const codes = new Map();
   const config = {
     dataDir,
@@ -23,7 +23,7 @@ export function testServer(overrides = {}) {
 }
 
 // A fetch for one device: keeps its cookie, talks to the server directly.
-export function deviceFetch(app, origin = 'https://eats.test') {
+export function deviceFetch(app, origin = 'https://bite-stamped.test') {
   let cookie = '';
   return async (url, opts = {}) => {
     const headers = new Headers(opts.headers || {});
