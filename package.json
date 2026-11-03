@@ -2,11 +2,13 @@
   "name": "eatlist-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Offline restaurant journal for the phone, stored as Markdown files with YAML headers.",
+  "description": "Offline-first restaurant journal for the phone, stored as Markdown files with YAML headers, with a small self-hosted sync server.",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
-    "start": "node scripts/serve.mjs",
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.js",
     "test": "node --test test/*.test.mjs",
     "icons": "node scripts/make-icons.mjs",
     "import-eatlist": "node scripts/import-eatlist.mjs"

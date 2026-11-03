@@ -88,6 +88,16 @@ p { margin: 0.5em 0; }
 .icon-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .icon-btn.primary { background: var(--accent); color: #fff; }
 
+.cloud { width: 22px !important; height: 22px !important; }
+.cloud.ok { color: var(--muted); }
+.cloud.pending { color: var(--star); }
+.cloud.error { color: var(--danger); }
+.cloud.signed-out { color: var(--muted); opacity: 0.55; }
+.cloud.syncing { color: var(--accent); animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: 0.35; } }
+
+.sign-in { display: grid; gap: 10px; margin-top: 8px; }
+
 button { font: inherit; color: inherit; }
 
 .text-btn {

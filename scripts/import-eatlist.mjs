@@ -11,8 +11,8 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { newRestaurant, toMarkdown, uniquePath, mediaDir, today } from '../js/model.js';
-import { createZip } from '../js/zip.js';
+import { newRestaurant, toMarkdown, uniquePath, mediaDir, today } from '../app/js/model.js';
+import { createZip } from '../app/js/zip.js';
 
 const DEFAULT_STORE = join(homedir(), 'Library/Containers/yqiang.Eatlist/Data/Library/Application Support/Eatlist/Eatlist_CloudKit.sqlite');
 const output = resolve(process.argv[2] || join(homedir(), 'Downloads', `eatlist-for-eats-${today()}.zip`));

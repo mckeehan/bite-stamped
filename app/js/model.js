@@ -188,3 +188,53 @@ export function mapsURL(r) {
   if (r.lat !== null && r.lon !== null) return `https://maps.apple.com/?q=${encodeURIComponent(r.name)}&ll=${r.lat},${r.lon}`;
   return `https://maps.apple.com/?q=${q}`;
 }
+
+// --- merging two versions of one restaurant (sync conflicts) ---
+
+const filled = (v) => v !== null && v !== undefined && v !== '' && v !== 0;
+
+function mergeText(a, b) {
+  if (a === b || !b) return a;
+  if (!a) return b;
+  if (a.includes(b)) return a;
+  if (b.includes(a)) return b;
+  return `${a}\n\n${b}`;
+}
+
+function unionBy(local, remote, key, combine = (l) => l) {
+  const out = [...local];
+  const index = new Map(local.map((item, i) => [key(item), i]));
+  for (const item of remote) {
+    const k = key(item);
+    if (index.has(k)) out[index.get(k)] = combine(out[index.get(k)], item);
+    else { index.set(k, out.length); out.push(item); }
+  }
+  return out;
+}
+
+// Combines this device's version with the server's: nothing that either side
+// added is lost. Single values prefer this device's version when it has one.
+// (An item deleted on one side but kept on the other comes back.)
+export function mergeRestaurants(local, remote) {
+  const r = { ...local };
+  for (const key of ['name', 'rating', 'cuisine', 'address', 'city', 'state', 'country', 'countryCode', 'lat', 'lon', 'website', 'phone', 'googlePlaceId']) {
+    if (!filled(r[key]) && filled(remote[key])) r[key] = remote[key];
+  }
+  r.created = [local.created, remote.created].filter(Boolean).sort()[0] || '';
+  r.tags = [...new Set([...local.tags, ...remote.tags])];
+  r.notes = mergeText(local.notes, remote.notes);
+  r.visits = unionBy(local.visits, remote.visits, (v) => JSON.stringify([v.date, v.rating, [...v.people].sort(), v.notes]));
+  r.dishes = unionBy(local.dishes, remote.dishes, (m) => m.name.trim().toLowerCase(), (l, m) => ({
+    ...l,
+    rating: l.rating || m.rating,
+    price: l.price || m.price,
+    notes: mergeText(l.notes, m.notes),
+    image: l.image || m.image,
+  }));
+  r.photos = unionBy(local.photos, remote.photos, (p) => p.file, (l, p) => ({ ...l, title: l.title || p.title, date: l.date || p.date }));
+  return r;
+}
+
+export function mergeMarkdown(path, localText, remoteText) {
+  return toMarkdown(mergeRestaurants(fromMarkdown(path, localText), fromMarkdown(path, remoteText)));
+}

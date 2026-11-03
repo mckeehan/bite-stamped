@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createZip, readZip } from '../js/zip.js';
+import { createZip, readZip } from '../app/js/zip.js';
 
 test('reads back what it writes', async () => {
   const image = new Uint8Array([0xff, 0xd8, 0, 1, 2, 3, 0xff, 0xd9]);

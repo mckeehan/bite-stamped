@@ -5,6 +5,8 @@ import {
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate } from './places.js';
 import { fileDate } from './images.js';
+import * as store from './store.js';
+import { createSync } from './sync.js';
 
 const APP_NAME = 'Eats';
 const main = document.getElementById('main');
@@ -124,6 +126,7 @@ function renderList() {
   main.innerHTML = `
     <header class="bar">
       <h1>${APP_NAME}</h1>
+      <a class="icon-btn sync-badge" href="#/settings" id="syncBadge" aria-label="Sync">${syncIcon()}</a>
       <a class="icon-btn" href="#/settings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm7.4-2.5a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L15 3.5h-4l-.3 2.5a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"/></svg></a>
       <a class="icon-btn primary" href="#/new" aria-label="Add restaurant"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></a>
     </header>
@@ -589,6 +592,7 @@ async function renderSettings() {
         : 'The browser may clear this data if the device runs low on space. Add the app to your Home Screen and export a backup now and then.'}</p>
       ${est.persisted ? '' : '<button class="btn" id="persist">Ask to keep data permanently</button>'}
     </section>
+    <section class="block" id="syncSection"></section>
     <section class="block">
       <h2>Backup and files</h2>
       <p class="muted small">Export saves everything as a ZIP: one Markdown file with a YAML header per restaurant, plus the images. Edit the files anywhere and import them again; files with the same name are replaced.</p>
@@ -599,12 +603,15 @@ async function renderSettings() {
     </section>
     <section class="block">
       <h2>Place search</h2>
-      <p class="muted small">Searching for a place sends your search text, and your rough location if you allow it, to OpenStreetMap’s Nominatim service. Nothing else leaves this device.</p>
+      <p class="muted small">Searching for a place sends your search text, and your rough location if you allow it, to OpenStreetMap’s Nominatim service.</p>
     </section>
     <section class="block">
       <h2>Start over</h2>
-      <button class="text-btn danger" id="wipe">Delete all data on this device</button>
+      <p class="muted small">Removes all restaurants and photos from this device only. When you are signed in, they download again from the server; nothing is deleted there.</p>
+      <button class="text-btn danger" id="wipe">Remove all data from this device</button>
     </section>`;
+
+  renderSyncSection();
 
   $('#persist')?.addEventListener('click', async () => {
     const ok = await repo.requestPersistence();
@@ -634,12 +641,153 @@ async function renderSettings() {
     }
   });
   $('#wipe').addEventListener('click', async () => {
-    if (prompt('This deletes every restaurant and photo on this device. Type DELETE to confirm.') !== 'DELETE') return;
+    const warning = sync.state.email
+      ? 'This removes every restaurant and photo from this device; they download again from the server. Changes not yet synced are lost. Type REMOVE to confirm.'
+      : 'You are not signed in to sync, so this deletes every restaurant and photo for good. Type REMOVE to confirm.';
+    if (prompt(warning) !== 'REMOVE') return;
     await repo.deleteEverything();
-    toast('All data deleted');
+    toast('Removed from this device');
     location.hash = '#/';
+    sync.sync();
   });
 }
+
+// --- sync ---
+
+const sync = createSync({
+  store,
+  onRemoteChange: () => refreshAfterRemoteChange(),
+  onState: () => {
+    const badge = $('#syncBadge');
+    if (badge) badge.outerHTML = `<a class="icon-btn sync-badge" href="#/settings" id="syncBadge" aria-label="Sync">${syncIcon()}</a>`;
+    // Never redraw the sign-in form while someone may be typing in it.
+    if ($('#syncSection') && !$('#signIn')) renderSyncSection();
+  },
+});
+
+function syncIcon() {
+  const { status, email, pending } = sync.state;
+  const kind = !email ? 'signed-out' : status === 'syncing' ? 'syncing' : status === 'error' ? 'error' : status === 'offline' || pending ? 'pending' : 'ok';
+  const title = {
+    'signed-out': 'Sync is off',
+    syncing: 'Syncing…',
+    error: 'Sync problem',
+    pending: `${pending || 'Some'} change${pending === 1 ? '' : 's'} waiting to sync`,
+    ok: 'Synced',
+  }[kind];
+  return `<svg viewBox="0 0 24 24" class="cloud ${kind}"><title>${esc(title)}</title><path d="M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.4 9.1 4.5 4.5 0 0 0 7 18Z"/>${
+    kind === 'ok' ? '<path d="M9.5 13.5l2 2 3.5-4"/>' : kind === 'signed-out' ? '<path d="M4 4l16 16"/>' : kind === 'error' ? '<path d="M12 10v3M12 15.5v.01"/>' : kind === 'syncing' ? '<path d="M9 13h6M12 10v6"/>' : '<circle cx="12" cy="13.5" r="1.3" fill="currentColor"/>'
+  }</svg>`;
+}
+
+function timeAgo(iso) {
+  if (!iso) return 'never';
+  const s = Math.round((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return formatDate(iso.slice(0, 10));
+}
+
+function renderSyncSection() {
+  const section = $('#syncSection');
+  if (!section) return;
+  const { email, status, lastSync, pending, error } = sync.state;
+
+  if (email) {
+    const line = status === 'syncing' ? 'Syncing…'
+      : status === 'offline' ? `Offline. ${pending ? `${pending} change${pending === 1 ? '' : 's'} will sync when you are back online.` : 'Changes sync when you are back online.'}`
+      : status === 'error' ? `Last sync failed: ${error}`
+      : pending ? `${pending} change${pending === 1 ? '' : 's'} waiting.` : `Up to date. Last synced ${timeAgo(lastSync)}.`;
+    section.innerHTML = `
+      <h2>Sync</h2>
+      <p>Signed in as <strong>${esc(email)}</strong></p>
+      <p class="muted small">${esc(line)}</p>
+      <p class="muted small">Everything you change here is saved on this device first and synced to your other devices and the server backup whenever there is a connection.</p>
+      <div class="row">
+        <button class="btn" id="syncNow"${status === 'syncing' ? ' disabled' : ''}>Sync now</button>
+        <button class="text-btn" id="signOut">Sign out</button>
+      </div>`;
+    $('#syncNow', section).addEventListener('click', () => sync.sync());
+    $('#signOut', section).addEventListener('click', async () => {
+      if (pending && !confirm(`${pending} change${pending === 1 ? ' has' : 's have'} not synced yet. They stay on this device and sync after you sign in again. Sign out?`)) return;
+      await sync.signOut();
+    });
+    return;
+  }
+
+  section.innerHTML = `
+    <h2>Sync</h2>
+    <p class="muted small">Sign in to keep your journal in sync across devices and backed up on the server. The app keeps working offline either way.</p>
+    <form id="signIn" class="sign-in" data-step="email">
+      <label>Email <input type="email" name="email" autocomplete="email" inputmode="email" required></label>
+      <label class="code" hidden>Code from the email <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></label>
+      <p class="muted small hint" hidden></p>
+      <div class="row">
+        <button class="btn" type="submit">Send code</button>
+        <button class="text-btn" type="button" id="restart" hidden>Use another address</button>
+      </div>
+    </form>`;
+  const form = $('#signIn', section);
+  const step = (name) => {
+    form.dataset.step = name;
+    $('.code', form).hidden = name !== 'code';
+    form.code.required = name === 'code';
+    form.email.readOnly = name === 'code';
+    $('#restart', form).hidden = name !== 'code';
+    $('button[type="submit"]', form).textContent = name === 'code' ? 'Sign in' : 'Send code';
+  };
+  const hint = (text) => { $('.hint', form).hidden = !text; $('.hint', form).textContent = text; };
+  $('#restart', form).addEventListener('click', () => { step('email'); hint(''); });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!navigator.onLine) return hint('You are offline. Signing in needs a connection.');
+    form.dataset.busy = '1';
+    const button = $('button[type="submit"]', form);
+    button.disabled = true;
+    try {
+      if (form.dataset.step === 'email') {
+        await sync.sendCode(form.email.value);
+        step('code');
+        hint('If this address may use the app, a 6-digit code is on its way. It is valid for 10 minutes.');
+        form.code.focus();
+      } else {
+        await sync.verify(form.email.value, form.code.value, navigator.userAgent.slice(0, 100));
+        delete form.dataset.busy;
+        toast('Signed in. Syncing…');
+        renderSyncSection();
+        return;
+      }
+    } catch (err) {
+      hint(err.message);
+    } finally {
+      button.disabled = false;
+      delete form.dataset.busy;
+    }
+  });
+}
+
+// Shows changes from other devices, unless the user is in the middle of
+// something (a form or a sheet); then they appear on the next navigation.
+let staleView = false;
+async function refreshAfterRemoteChange() {
+  await repo.loadAll();
+  const editing = sheet.open || /^#\/(new|edit\/|settings)/.test(location.hash);
+  if (editing) { staleView = true; return; }
+  const y = window.scrollY;
+  render();
+  window.scrollTo(0, y);
+}
+
+let syncTimer;
+store.onLocalChange(() => {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => sync.sync(), 1500);
+});
+window.addEventListener('online', () => sync.sync());
+window.addEventListener('offline', () => sync.sync());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync.sync(); });
+setInterval(() => { if (document.visibilityState === 'visible') sync.sync(); }, 5 * 60_000);
 
 function notFound() {
   main.innerHTML = `<header class="bar"><a class="icon-btn" href="#/" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a></header>
@@ -650,10 +798,15 @@ function notFound() {
 
 function route() {
   if (sheet.open) closeSheet();
+  if (staleView) { staleView = false; repo.loadAll().then(render); window.scrollTo(0, 0); return; }
+  window.scrollTo(0, 0);
+  render();
+}
+
+function render() {
   const [pathPart, query = ''] = location.hash.replace(/^#/, '').split('?');
   const params = new URLSearchParams(query);
   const parts = pathPart.split('/').filter(Boolean);
-  window.scrollTo(0, 0);
   if (parts[0] === 'r' && parts[1]) return renderDetail(decodeURIComponent(parts[1]));
   if (parts[0] === 'edit' && parts[1]) return renderEdit(decodeURIComponent(parts[1]), params);
   if (parts[0] === 'new') return renderEdit(null, params);
@@ -669,4 +822,6 @@ window.addEventListener('hashchange', route);
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker:', e));
   }
+  await sync.init();
+  sync.sync();
 })();

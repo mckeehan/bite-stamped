@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parse, stringify, parseFrontMatter, stringifyFrontMatter } from '../js/yaml.js';
+import { parse, stringify, parseFrontMatter, stringifyFrontMatter } from '../app/js/yaml.js';
 
 test('round-trips the values the app writes', () => {
   const data = {

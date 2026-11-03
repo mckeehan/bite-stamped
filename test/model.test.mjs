@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   fromMarkdown, toMarkdown, newRestaurant, uniquePath, slugify, mediaDir, displayRating, matches, lastVisit,
-} from '../js/model.js';
+} from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
   const r = newRestaurant({

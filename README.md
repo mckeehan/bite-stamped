@@ -1,8 +1,10 @@
 # Eats – restaurant journal
 
 A private restaurant journal that runs in the browser, installs on a phone's
-Home Screen and works offline. Plain HTML, CSS and JavaScript: no frameworks,
-no build step, no dependencies.
+Home Screen and works offline. Signed-in devices sync with each other through
+a small server you host yourself, which also keeps every version of every file
+as a backup. Plain HTML, CSS and JavaScript plus Node.js: no frameworks, no
+build step, no dependencies at all.
 
 - Restaurants with rating, "to try" flag, cuisine, address, website, phone, tags
   and Markdown notes
@@ -10,6 +12,7 @@ no build step, no dependencies.
 - Dishes with rating, price, notes and an image
 - Photos with a title and date; any photo can be the cover
 - Place search through OpenStreetMap (online only; everything else works offline)
+- Sync between devices and server backup, after signing in with an emailed code
 - Export and import as a ZIP of Markdown files
 
 ## Data format
@@ -50,20 +53,140 @@ photos:
 Ask for the **cacio e pepe**.
 ```
 
-On the device the files live in the browser's IndexedDB, so they are there
-offline. **Settings → Export ZIP** gives you the real files; edit them with any
-editor (Obsidian works well) and **Import ZIP** them again. Files with the same
-path are replaced, everything else is kept.
+**Settings → Export ZIP** gives you the files from a device; edit them with
+any editor (Obsidian works well) and **Import ZIP** them again. Files with the
+same path are replaced, everything else is kept (and then synced).
 
-## Run locally
+## Run the server
 
-Needs Node.js 22 or newer for the tests (the server runs on 20).
+Needs Node.js 22.13 or newer (it uses the built-in `node:sqlite`).
 
 ```bash
-npm start          # http://localhost:8080 (PORT=… to change)
-npm test           # YAML, model and ZIP tests (node --test)
-npm run icons      # redraw the icons in icons/
+git clone https://github.com/mckeehan/eatlist-web.git
+cd eatlist-web
+cp .env.example .env      # then edit .env
+npm start                 # http://127.0.0.1:8080
+npm test                  # all tests, including two devices syncing
 ```
+
+Settings (in `.env` or the environment):
+
+| Variable | Meaning |
+|---|---|
+| `PORT`, `HOST` | Where to listen. Default `8080` on `127.0.0.1`; use `0.0.0.0` to reach it from other devices without a proxy. |
+| `DATA_DIR` | Where the data goes. Default `./data`. |
+| `ALLOWED_EMAILS` | Comma-separated addresses that may sign in. Removing an address ends its sessions. |
+| `SMTP_URL`, `MAIL_FROM` | Email for sign-in codes: `smtps://user:pass@host:465` (TLS) or `smtp://user:pass@host:587` (STARTTLS). URL-encode `@` in user names as `%40`. Without `SMTP_URL`, codes are printed in the server log. |
+| `TRUST_PROXY` | `1` behind a reverse proxy, so the server sees the real `https://` address and client IPs. |
+
+For Gmail, use an [app password](https://support.google.com/accounts/answer/185833)
+with `smtps://you%40gmail.com:app-password@smtp.gmail.com:465`.
+
+### What is in `DATA_DIR`
+
+```
+eats.sqlite              file index, change counter, login codes, sessions
+versions/<path>/<rev>    every version of every file: the backup history
+files/<path>             the current Markdown and images as plain files
+```
+
+Back up the whole folder (with the server stopped, or use
+`sqlite3 eats.sqlite ".backup copy.sqlite"` for the database). `files/` is a
+convenient read-only view: edits made there are not synced; use Export/Import
+in the app for that. Deleting something in the app only marks it deleted, so
+its versions stay in `versions/`.
+
+### HTTPS (needed on the phone)
+
+Installing the app and offline mode need HTTPS. Two easy ways:
+
+- **Tailscale** (private, no open ports): on the server,
+  `tailscale serve --bg 8080`. The app is then at
+  `https://<machine>.<tailnet>.ts.net` for your devices on Tailscale.
+- **Caddy** (public, automatic certificates): a `Caddyfile` with
+  ```
+  eats.example.com {
+    reverse_proxy 127.0.0.1:8080
+  }
+  ```
+
+Set `TRUST_PROXY=1` in both cases.
+
+### Run it as a service
+
+**Linux (systemd)** – `/etc/systemd/system/eats.service`:
+
+```ini
+[Unit]
+Description=Eats restaurant journal
+After=network-online.target
+
+[Service]
+User=eats
+WorkingDirectory=/opt/eatlist-web
+ExecStart=/usr/bin/node --env-file=.env --disable-warning=ExperimentalWarning server/index.js
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/eatlist-web/data
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then `sudo systemctl enable --now eats` and `journalctl -u eats -f` for the log.
+
+**macOS (launchd)** – `~/Library/LaunchAgents/com.example.eats.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.example.eats</string>
+  <key>WorkingDirectory</key><string>/Users/you/eatlist-web</string>
+  <key>ProgramArguments</key><array>
+    <string>/usr/local/bin/node</string>
+    <string>--env-file=.env</string>
+    <string>--disable-warning=ExperimentalWarning</string>
+    <string>server/index.js</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/you/eatlist-web/data/eats.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/eatlist-web/data/eats.log</string>
+</dict></plist>
+```
+
+Then `launchctl load ~/Library/LaunchAgents/com.example.eats.plist`. Use the
+path of your `node` (`which node`).
+
+To update: `git pull`, then restart the service. Bump `VERSION` in
+`app/sw.js` with every change to the app (and add new files to its list) so
+installed copies update.
+
+## How offline-first sync works
+
+- Every device keeps the full journal in the browser's IndexedDB. The app only
+  ever reads and writes that copy, so it works the same with or without a
+  connection.
+- Each local file remembers the server version it is based on and whether it
+  changed since. When the device is online and signed in, it uploads its
+  changes (`PUT` with `If-Match`), then asks the server for everything that
+  changed since its last sync (a change counter).
+- If a file changed elsewhere first, the server answers 409 and the device
+  merges both versions of the restaurant (visits, dishes, photos and tags are
+  combined; single values keep this device's edit) and uploads the merge. An
+  edit wins over a deletion.
+- Each server's data has a random id. If a device meets a different one (a new
+  or restored server), it uploads its whole copy again, merging with what is
+  there, and downloads everything.
+- Sync runs after each change (after 1.5 s), when the app comes back online or
+  to the foreground, and every 5 minutes while it is open.
+
+Sign-in: only addresses in `ALLOWED_EMAILS` get a code (valid 10 minutes, five
+tries). A correct code sets an HttpOnly session cookie for a year. Writes also
+need an `X-Eats` header from the same origin; sign-in requests are limited per
+client address; responses carry a strict Content Security Policy.
 
 ## Bring over data from Eatlist
 
@@ -73,20 +196,6 @@ On a Mac with the Eatlist app installed (and synced from iCloud):
 npm run import-eatlist                # writes ~/Downloads/eatlist-for-eats-<date>.zip
 ```
 
-Then import that ZIP in the app (Settings → Import ZIP). The script only reads
-a copy of Eatlist's database. The ZIP holds your personal data: keep it out of
-this public repo (`*.zip` is git-ignored).
-
-## Install on a phone
-
-Installing and offline mode need HTTPS, so the app has to be hosted. Any static
-host works; the app is just these files (leave out `scripts/`, `test/`).
-GitHub Pages, Cloudflare Pages or Netlify are free options.
-
-Then on the iPhone: open the URL in Safari → Share → **Add to Home Screen**.
-Open it once while online; after that it works offline. In Settings, tap
-**Ask to keep data permanently**, and export a ZIP now and then as a backup;
-the data lives only on that device.
-
-After changing files, bump `VERSION` in `sw.js` (and add new files to its
-list) so installed copies pick up the update.
+Then import that ZIP in the app (Settings → Import ZIP); it syncs from there.
+The script only reads a copy of Eatlist's database. The ZIP holds your
+personal data: keep it out of this public repo (`*.zip` is git-ignored).

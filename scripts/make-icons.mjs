@@ -6,7 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const out = fileURLToPath(new URL('../icons/', import.meta.url));
+const out = fileURLToPath(new URL('../app/icons/', import.meta.url));
 mkdirSync(out, { recursive: true });
 
 const BG = [0xc2, 0x41, 0x0c];
