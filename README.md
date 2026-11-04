@@ -201,8 +201,9 @@ path of your `node` (`which node`).
 
 To update: `git pull`, then restart the service. With every change to the
 app, raise the version and date in `app/js/version.js` (shown at the bottom
-of Settings), and add new files to the list in `app/sw.js`, so installed
-copies update. They pick up the new version the next time they are
+of Settings) and the same version in `VERSION` in `app/sw.js` (`npm test`
+checks they match), and add new files to the list in `app/sw.js`, so
+installed copies update. They pick up the new version the next time they are
 opened or brought to the front, and reload into it as soon as nothing is being
 edited.
 

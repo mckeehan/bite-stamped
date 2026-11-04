@@ -1077,7 +1077,7 @@ function watchForUpdates() {
     updateReady = true;
     reloadIfUpdated();
   });
-  navigator.serviceWorker.register('sw.js')
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
     .then((reg) => {
       // Installed apps resume without a page load, so look for updates then too.
       document.addEventListener('visibilitychange', () => {

@@ -1,12 +1,13 @@
 // Keeps the app itself available offline. Data never passes through here:
 // it lives in IndexedDB, and the sync API always goes to the network.
 // App files are served from the cache and refreshed in the background. A new
-// release (js/version.js, which the browser checks along with this file)
-// installs a fresh copy of every file and takes over right away; the page then
-// reloads into it (app.js).
+// release installs a fresh copy of every file and takes over right away; the
+// page then reloads into it (app.js).
 
-importScripts('js/version.js');
-const VERSION = `v${self.BITE_STAMPED_RELEASE.version}`;
+// Must match js/version.js (a test checks). It is written out here, not
+// imported, because browsers decide whether there is an update by comparing
+// this file's bytes, and Safari ignores changes in imported scripts.
+const VERSION = 'v13';
 const CACHE = `bite-stamped-${VERSION}`;
 // The sync API sits next to this file (e.g. /bites/api/ when served below /bites).
 const API_PATH = new URL('api/', self.registration.scope).pathname;

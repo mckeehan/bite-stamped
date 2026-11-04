@@ -1,4 +1,4 @@
-// The app's release: shown at the bottom of Settings, and the name of the
-// offline cache in sw.js. Change it with every release, so installed copies
-// update. A classic script (not a module), so sw.js can importScripts it.
-self.BITE_STAMPED_RELEASE = { version: '12', date: '2026-11-04' };
+// The app's release, shown at the bottom of Settings. Change it with every
+// release, together with VERSION in sw.js (a test checks they match), so
+// installed copies update.
+self.BITE_STAMPED_RELEASE = { version: '13', date: '2026-11-04' };
