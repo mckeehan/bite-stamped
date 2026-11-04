@@ -666,14 +666,40 @@ function journalNote(r) {
   return 'In your journal';
 }
 
+// Phones only show the keyboard for an input focused during the tap itself,
+// and the search box doesn't exist yet when "+" is tapped. So the tap focuses
+// a hidden input (the keyboard opens), and focusSearch hands focus over once
+// the screen is drawn; the keyboard stays open. Without a tap, touch screens
+// get no focus at all rather than a box that looks focused without a cursor.
+let keyboardBridge = null;
+const touchScreen = matchMedia('(pointer: coarse)').matches;
+document.addEventListener('click', (e) => {
+  if (!touchScreen || !e.target.closest?.('a[href^="#/new"]')) return;
+  keyboardBridge?.remove();
+  const bridge = document.createElement('input');
+  bridge.setAttribute('aria-hidden', 'true');
+  bridge.tabIndex = -1;
+  bridge.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0';
+  document.body.append(bridge);
+  bridge.focus({ preventScroll: true });
+  keyboardBridge = bridge;
+  setTimeout(() => { if (keyboardBridge === bridge) { bridge.remove(); keyboardBridge = null; } }, 3000);
+}, true);
+
+function focusSearch(input) {
+  if (touchScreen && !keyboardBridge) return;
+  input.focus({ preventScroll: true });
+  keyboardBridge?.remove();
+  keyboardBridge = null;
+}
+
 function setUpPlacePicker(form) {
   const journal = repo.all();
   const picker = $('#placePicker');
   const input = $('#placeQuery');
   const list = $('#placeResults');
   const status = $('#placeStatus');
-  // Ready to type. (iOS only shows the keyboard when this follows a tap.)
-  input.focus({ preventScroll: true });
+  focusSearch(input);
   let nearby = [];   // food places around the device
   let found = null;  // results of the last Search, for `foundFor`
   let foundFor = '';
