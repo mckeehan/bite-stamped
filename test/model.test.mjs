@@ -90,3 +90,17 @@ test('findInJournal matches by loose name and nearby location', () => {
   assert.equal(findInJournal({ name: 'Lunchbox', lat: 35.96, lon: -83.92, street: 'Gay St' }, journal), null);
   assert.equal(nameKey('The Pig & Whistle’s'), 'pig and whistles');
 });
+
+test('visits keep their time, and sort with date-only visits', () => {
+  const r = newRestaurant({ name: 'Late Night', visits: [
+    { date: '2026-10-12', rating: 3, people: [], notes: '' },
+    { date: '2026-10-12T19:30', rating: 4, people: [], notes: '' },
+    { date: '2026-10-11T23:05', rating: 5, people: [], notes: '' },
+  ] });
+  const md = toMarkdown(r);
+  assert.match(md, /date: 2026-10-12T19:30\n/);
+  const back = fromMarkdown('restaurants/late-night.md', md);
+  // Saved newest first; a visit with a time sorts after a date-only one of the same day.
+  assert.deepEqual(back.visits.map((v) => v.date), ['2026-10-12T19:30', '2026-10-12', '2026-10-11T23:05']);
+  assert.equal(lastVisit(back), '2026-10-12T19:30');
+});

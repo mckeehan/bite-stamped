@@ -17,7 +17,7 @@ city: Knoxville
 tags:
 - date night
 visits:
-- date: 2026-10-12
+- date: 2026-10-12T19:30
   rating: 5
   people:
   - Anna
@@ -35,6 +35,10 @@ photos:
 
 Ask for the **cacio e pepe**.
 ```
+
+A visit's `date` is the local date and time of the visit (`2026-10-12T19:30`),
+or just the date (`2026-10-12`) when the time is not known. Photo dates are
+dates only.
 
 **Settings → Export ZIP** gives you the files from a device; edit them with
 any editor (Obsidian works well) and **Import ZIP** them again. Files with the

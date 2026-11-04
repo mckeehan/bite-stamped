@@ -50,6 +50,12 @@ export function today() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Local date and time to the minute, e.g. 2026-10-12T19:30 (visits).
+export function now() {
+  const d = new Date();
+  return `${today()}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 export function newRestaurant(fields = {}) {
   return normalize({ created: new Date().toISOString(), ...fields });
 }

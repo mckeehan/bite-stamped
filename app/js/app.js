@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, findInJournal, distance,
+  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyFood, formatDistance } from './places.js';
@@ -27,13 +27,35 @@ function formatDate(ymd, style = 'medium') {
   return new Intl.DateTimeFormat(undefined, { dateStyle: style }).format(new Date(y, m - 1, d));
 }
 
+// "2026-10-12T19:30" → date and time; a date without a time → just the date.
+function formatDateTime(value, style = 'medium') {
+  const [, h, min] = String(value || '').match(/T(\d\d):(\d\d)/) || [];
+  if (!h) return formatDate(value, style);
+  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date(2000, 0, 1, Number(h), Number(min)));
+  return `${formatDate(value, style)}, ${time}`;
+}
+
+// Read-only stars are one image to screen readers ("4 of 5 stars"). Star
+// inputs are a radio group: one tab stop, arrow keys change the rating.
 function stars(n, { input = false, name = 'rating', size = '' } = {}) {
   const items = [1, 2, 3, 4, 5].map((i) => input
-    ? `<button type="button" class="star${i <= n ? ' on' : ''}" data-value="${i}" aria-label="${i} star${i > 1 ? 's' : ''}">★</button>`
+    ? `<button type="button" class="star${i <= n ? ' on' : ''}" data-value="${i}" role="radio" aria-checked="${i === n}"
+        tabindex="${i === (n || 1) ? 0 : -1}" aria-label="${i} star${i > 1 ? 's' : ''}">★</button>`
     : `<span class="star${i <= n ? ' on' : ''}">★</span>`).join('');
   return input
-    ? `<span class="stars input ${size}" data-name="${name}" data-value="${n}" role="group" aria-label="Rating">${items}</span>`
-    : n ? `<span class="stars ${size}" aria-label="${n} of 5 stars">${items}</span>` : '';
+    ? `<span class="stars input ${size}" data-name="${name}" data-value="${n}" role="radiogroup" aria-label="Rating">${items}</span>`
+    : n ? `<span class="stars ${size}" role="img" aria-label="${n} of 5 stars">${items}</span>` : '';
+}
+
+function setStars(group, value) {
+  group.dataset.value = value;
+  for (const s of $$('.star', group)) {
+    const v = Number(s.dataset.value);
+    s.classList.toggle('on', v <= value);
+    s.setAttribute('aria-checked', String(v === value));
+    s.tabIndex = v === (value || 1) ? 0 : -1;
+  }
+  group.dispatchEvent(new CustomEvent('rate', { bubbles: true, detail: value }));
 }
 
 // Star inputs: tapping the current value clears it.
@@ -42,10 +64,18 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   const group = btn.parentElement;
   const v = Number(btn.dataset.value);
-  const next = Number(group.dataset.value) === v ? 0 : v;
-  group.dataset.value = next;
-  $$('.star', group).forEach((s) => s.classList.toggle('on', Number(s.dataset.value) <= next));
-  group.dispatchEvent(new CustomEvent('rate', { bubbles: true, detail: next }));
+  setStars(group, Number(group.dataset.value) === v ? 0 : v);
+});
+
+const STAR_KEYS = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, Home: -5, End: 5 };
+document.addEventListener('keydown', (e) => {
+  const btn = e.target.closest?.('.stars.input .star');
+  if (!btn || !(e.key in STAR_KEYS)) return;
+  e.preventDefault();
+  const group = btn.parentElement;
+  const next = Math.min(5, Math.max(1, (Number(group.dataset.value) || 0) + STAR_KEYS[e.key]));
+  setStars(group, next);
+  $(`.star[data-value="${next}"]`, group).focus();
 });
 
 const starValue = (root, name = 'rating') => Number($(`.stars.input[data-name="${name}"]`, root)?.dataset.value || 0);
@@ -107,16 +137,18 @@ function setTitle(text) {
 
 const SORTS = {
   visited: [['recent', 'Last visit'], ['rating', 'Rating'], ['visits', 'Most visits'], ['nearest', 'Nearest'], ['name', 'Name'], ['added', 'Date added']],
-  totry: [['added', 'Date added'], ['nearest', 'Nearest'], ['name', 'Name']],
+  totry: [['nearest', 'Nearest'], ['added', 'Date added'], ['name', 'Name']],
 };
-const listState = { view: 'list', query: '', sorts: { visited: 'recent', totry: 'added' } };
+const listState = { view: 'list', query: '', sorts: { visited: 'recent', totry: 'nearest' } };
 try {
   const saved = JSON.parse(localStorage.getItem('listState') || '{}');
   if (saved.view === 'map') listState.view = 'map';
+  // Before v2, To Try's old default (date added) was saved even if never chosen.
+  if (saved.v !== 2 && saved.sorts?.totry === 'added') delete saved.sorts.totry;
   Object.assign(listState.sorts, saved.sorts);
 } catch {}
 const rememberList = () => {
-  try { localStorage.setItem('listState', JSON.stringify({ view: listState.view, sorts: listState.sorts })); } catch {}
+  try { localStorage.setItem('listState', JSON.stringify({ v: 2, view: listState.view, sorts: listState.sorts })); } catch {}
 };
 const homeOf = (r) => (r?.toTry ? '#/totry' : '#/');
 
@@ -307,7 +339,7 @@ function renderDetail(path) {
       <div class="block-head"><h2>Visits <span class="count">${r.visits.length || ''}</span></h2><button class="text-btn" id="addVisit">+ Visit</button></div>
       ${r.visits.length ? `<ul class="rows">${sortVisits(r.visits).map((v) => `
         <li><button class="row-btn" data-visit="${r.visits.indexOf(v)}">
-          <span class="row-main"><strong>${esc(formatDate(v.date, 'long'))}</strong>${stars(v.rating, { size: 'small' })}</span>
+          <span class="row-main"><strong>${esc(formatDateTime(v.date, 'long'))}</strong>${stars(v.rating, { size: 'small' })}</span>
           ${v.people.length ? `<small>with ${esc(v.people.join(', '))}</small>` : ''}
           ${v.notes ? `<small class="muted pre">${esc(v.notes)}</small>` : ''}
         </button></li>`).join('')}</ul>` : '<p class="muted small">No visits yet.</p>'}
@@ -368,11 +400,14 @@ function peopleDatalist() {
 }
 
 function editVisit(r, index) {
-  const v = r.visits[index] || { date: today(), rating: 0, people: [], notes: '' };
+  const v = r.visits[index] || { date: now(), rating: 0, people: [], notes: '' };
   openSheet(`
     <form method="dialog" class="sheet-form">
       <header><button type="button" class="text-btn" data-close>Cancel</button><h2>${index < 0 ? 'New visit' : 'Visit'}</h2><button class="text-btn strong" value="save">Save</button></header>
-      <label>Date <input type="date" name="date" value="${esc(v.date.slice(0, 10))}" required></label>
+      <div class="row date-time">
+        <label class="grow">Date <input type="date" name="date" value="${esc(v.date.slice(0, 10))}" required></label>
+        <label class="grow">Time <input type="time" name="time" value="${esc(v.date.slice(11, 16))}"></label>
+      </div>
       <div class="field"><span>Rating</span>${stars(v.rating, { input: true, name: 'visit', size: 'large' })}</div>
       <div class="field">
         <span>With</span>
@@ -408,7 +443,8 @@ function editVisit(r, index) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       addPerson();
-      const visit = { date: form.date.value, rating: starValue(dlg, 'visit'), people, notes: form.notes.value.trim() };
+      const date = form.date.value + (form.time.value ? `T${form.time.value.slice(0, 5)}` : '');
+      const visit = { date, rating: starValue(dlg, 'visit'), people, notes: form.notes.value.trim() };
       if (index < 0) r.visits.push(visit);
       else r.visits[index] = visit;
       if (index < 0 && r.toTry) r.toTry = false;
@@ -636,6 +672,8 @@ function setUpPlacePicker(form) {
   const input = $('#placeQuery');
   const list = $('#placeResults');
   const status = $('#placeStatus');
+  // Ready to type. (iOS only shows the keyboard when this follows a tap.)
+  input.focus({ preventScroll: true });
   let nearby = [];   // food places around the device
   let found = null;  // results of the last Search, for `foundFor`
   let foundFor = '';

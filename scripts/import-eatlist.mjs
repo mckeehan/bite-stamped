@@ -23,6 +23,8 @@ const externalData = join(dirname(store), `.${basename(store, '.sqlite')}_SUPPOR
 const CORE_DATA_EPOCH = 978307200;
 const toDate = (seconds) => (seconds === null || seconds === undefined ? null : new Date((seconds + CORE_DATA_EPOCH) * 1000));
 const ymd = (date, timeZone) => date && new Intl.DateTimeFormat('en-CA', { timeZone: timeZone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+// Date and time in the visit's own time zone, e.g. 2026-10-12T19:30.
+const ymdhm = (date, timeZone) => date && `${ymd(date, timeZone)}T${new Intl.DateTimeFormat('en-GB', { timeZone: timeZone || undefined, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)}`;
 const rating = (v) => (v > 0 ? Math.min(5, v) : 0); // Eatlist uses -1 (or 0) for "not rated"
 
 if (!existsSync(store)) {
@@ -96,7 +98,7 @@ try {
     paths.push(r.path);
 
     r.visits = visits.filter((v) => v.restaurant === row.pk).map((v) => ({
-      date: ymd(toDate(v.date), v.tz),
+      date: ymdhm(toDate(v.date), v.tz),
       rating: rating(v.rating),
       people: people.filter((p) => p.visit === v.pk && p.name).map((p) => p.name),
       notes: '',

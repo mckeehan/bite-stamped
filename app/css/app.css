@@ -2,11 +2,14 @@
   --bg: #fbf7f2;
   --surface: #ffffff;
   --text: #1c1917;
-  --muted: #78716c;
+  --muted: #6b645f;
   --line: #e7e0d8;
+  --field-border: #8f877f; /* edges of inputs: 3:1 against the page */
   --accent: #c2410c;
   --accent-soft: #fde8dc;
-  --star: #f59e0b;
+  --accent-text: #ad3b0d; /* accent text on --accent-soft */
+  --on-accent: #ffffff;
+  --star: #b45309;
   --star-off: #e7e0d8;
   --danger: #b91c1c;
   --radius: 14px;
@@ -21,8 +24,12 @@
     --text: #f5f5f4;
     --muted: #a8a29e;
     --line: #3f3a36;
+    --field-border: #78716c;
     --accent: #fb923c;
     --accent-soft: #43281a;
+    --accent-text: #fb923c;
+    --on-accent: #1c1917;
+    --star: #f59e0b;
     --star-off: #4a4440;
     --danger: #f87171;
     --shadow: none;
@@ -57,6 +64,7 @@ p { margin: 0.5em 0; }
 .pre { white-space: pre-wrap; }
 .grow { flex: 1; }
 [hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* --- top bar --- */
 
@@ -87,7 +95,7 @@ p { margin: 0.5em 0; }
 }
 .icon-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 button.icon-btn { padding: 0; border: 0; background: none; cursor: pointer; }
-.icon-btn.primary { background: var(--accent); color: #fff; }
+.icon-btn.primary { background: var(--accent); color: var(--on-accent); }
 
 .sign-in { display: grid; gap: 10px; margin-top: 8px; }
 
@@ -129,7 +137,7 @@ button { font: inherit; color: inherit; }
   font-size: 0.875rem;
   cursor: pointer;
 }
-.chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
 
 /* --- stars --- */
 
@@ -139,19 +147,21 @@ button { font: inherit; color: inherit; }
 .stars.large { font-size: 1.7rem; }
 .stars.input .star { background: none; border: 0; padding: 2px; cursor: pointer; color: var(--star-off); font-size: inherit; line-height: 1; }
 .stars.input .star.on { color: var(--star); }
+.stars.input .star:focus-visible { outline-offset: 0; border-radius: 4px; }
 
 /* --- list --- */
 
 .list-tools { display: grid; gap: 10px; margin: 4px 0 14px; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row.spread { justify-content: space-between; }
+.row.date-time { align-items: end; }
 
 input, textarea, select {
   font: inherit;
   font-size: 16px; /* keeps iOS from zooming */
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-border);
   border-radius: 12px;
   padding: 10px 12px;
   width: 100%;
@@ -210,7 +220,7 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 .contact a { overflow-wrap: anywhere; }
 .tags, .people { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .people:empty { display: none; }
-.tag { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 3px 10px; font-size: 0.85rem; }
+.tag { background: var(--accent-soft); color: var(--accent-text); border-radius: 999px; padding: 3px 10px; font-size: 0.85rem; }
 .tag.removable { cursor: pointer; }
 .notes { margin: 12px 0; padding: 12px 14px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); }
 .notes h4 { margin: 0.6em 0 0.3em; }
@@ -283,12 +293,12 @@ label.check { display: flex; align-items: center; gap: 10px; color: var(--text);
 .place-list li.in-journal { background: var(--accent-soft); border-radius: 10px; border-top-color: transparent; }
 .place-list li.in-journal + li { border-top-color: transparent; }
 .place-list li.in-journal button { padding-left: 10px; padding-right: 10px; }
-.journal-note { color: var(--accent); font-size: 0.8125rem; font-weight: 600; }
+.journal-note { color: var(--accent-text); font-size: 0.8125rem; font-weight: 600; }
 .choice { display: grid; gap: 10px; padding: 8px 4px 4px; text-align: center; }
 .choice h2 { font-size: 1.05rem; margin: 0; }
 .choice p { margin: 0 0 8px; }
 .choice .btn { width: 100%; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .custom-place { justify-self: center; margin: 16px 0; }
 .back-to-search { justify-self: start; padding-left: 0; }
 .results { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
