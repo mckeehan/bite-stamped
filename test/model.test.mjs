@@ -104,3 +104,19 @@ test('visits keep their time, and sort with date-only visits', () => {
   assert.deepEqual(back.visits.map((v) => v.date), ['2026-10-12T19:30', '2026-10-12', '2026-10-11T23:05']);
   assert.equal(lastVisit(back), '2026-10-12T19:30');
 });
+
+test('directions use the location when there is one, otherwise the address', async () => {
+  const { directionLinks } = await import('../app/js/model.js');
+  const withPoint = directionLinks(newRestaurant({ name: 'Chez Marie', address: '1 Main St', city: 'Bern', lat: 46.95, lon: 7.44 }));
+  assert.equal(withPoint.google, 'https://www.google.com/maps/dir/?api=1&destination=46.95,7.44');
+  assert.equal(withPoint.waze, 'https://waze.com/ul?ll=46.95,7.44&navigate=yes');
+  assert.equal(withPoint.apple, 'https://maps.apple.com/?daddr=46.95,7.44&q=Chez%20Marie');
+  assert.equal(withPoint.geo, 'geo:46.95,7.44?q=46.95,7.44(Chez%20Marie)');
+  assert.equal(withPoint.address, '1 Main St, Bern');
+
+  const addressOnly = directionLinks(newRestaurant({ name: 'Joe’s', address: '5 Elm St', city: 'Knoxville', state: 'TN' }));
+  assert.equal(addressOnly.google, `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent('Joe’s, 5 Elm St, Knoxville, TN')}`);
+  assert.equal(addressOnly.waze, `https://waze.com/ul?q=${encodeURIComponent('Joe’s, 5 Elm St, Knoxville, TN')}&navigate=yes`);
+
+  assert.equal(directionLinks(newRestaurant({ name: 'Nowhere' })), null);
+});

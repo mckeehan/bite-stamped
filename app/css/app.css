@@ -218,6 +218,8 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 .head-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
 .contact { display: grid; gap: 6px; margin: 10px 0; }
 .contact a { overflow-wrap: anywhere; }
+.contact-btn { background: none; border: 0; padding: 0; text-align: left; color: var(--accent); font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.choice a.btn { text-decoration: none; }
 .tags, .people { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .people:empty { display: none; }
 .tag { background: var(--accent-soft); color: var(--accent-text); border-radius: 999px; padding: 3px 10px; font-size: 0.85rem; }

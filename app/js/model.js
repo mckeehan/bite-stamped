@@ -189,10 +189,26 @@ export function placeLine(r) {
     .join(', ');
 }
 
-export function mapsURL(r) {
-  const q = encodeURIComponent([r.name, r.address].filter(Boolean).join(', '));
-  if (r.lat !== null && r.lon !== null) return `https://maps.apple.com/?q=${encodeURIComponent(r.name)}&ll=${r.lat},${r.lon}`;
-  return `https://maps.apple.com/?q=${q}`;
+// Links that open a navigation app with the restaurant as the destination.
+// With a location they use it (exact); otherwise the name and address.
+// null when there is nothing to navigate to.
+export function directionLinks(r) {
+  const hasPoint = Number.isFinite(r.lat) && Number.isFinite(r.lon);
+  const where = [r.address, r.city, r.state, r.country].filter(Boolean).join(', ');
+  if (!hasPoint && !where) return null;
+  const text = encodeURIComponent([r.name, where].filter(Boolean).join(', '));
+  const name = encodeURIComponent(r.name || '');
+  const ll = hasPoint ? `${r.lat},${r.lon}` : '';
+  return {
+    apple: hasPoint ? `https://maps.apple.com/?daddr=${ll}&q=${name}` : `https://maps.apple.com/?daddr=${text}`,
+    google: `https://www.google.com/maps/dir/?api=1&destination=${hasPoint ? ll : text}`,
+    waze: hasPoint ? `https://waze.com/ul?ll=${ll}&navigate=yes` : `https://waze.com/ul?q=${text}&navigate=yes`,
+    // Android: lets the user pick any installed map app.
+    geo: hasPoint ? `geo:${ll}?q=${ll}(${name})` : `geo:0,0?q=${text}`,
+    // For sharing as text: the address, and a link that opens anywhere.
+    address: where,
+    web: `https://www.google.com/maps/search/?api=1&query=${hasPoint ? ll : text}`,
+  };
 }
 
 // --- merging two versions of one restaurant (sync conflicts) ---

@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, now, findInJournal, distance,
+  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyFood, formatDistance, fallbackSearch, addressAt } from './places.js';
@@ -172,7 +172,52 @@ const ICONS = {
   map: '<svg viewBox="0 0 24 24"><path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6 9 4Zm0 0v14m6-12v14"/></svg>',
   list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
   add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  directions: '<svg viewBox="0 0 24 24"><path d="M3.5 11 20.5 3.5 13 20.5l-2-7.5-7.5-2Z"/></svg>',
 };
+
+// Directions and sharing for one restaurant: map apps, the system share sheet,
+// or the address to paste somewhere.
+const ua = navigator.userAgent;
+const isAppleDevice = /iPhone|iPad|iPod|Macintosh/.test(ua);
+const isAndroid = /Android/.test(ua);
+
+function openDirections(r) {
+  const d = directionLinks(r);
+  if (!d) return;
+  const app = (href, label) => `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${label}</a>`;
+  const shareText = [r.name, d.address].filter(Boolean).join('\n');
+  openSheet(`
+    <div class="choice">
+      <h2>${esc(r.name)}</h2>
+      ${d.address ? `<p class="muted small">${esc(d.address)}</p>` : ''}
+      ${isAppleDevice || !isAndroid ? app(d.apple, 'Apple Maps') : ''}
+      ${app(d.google, 'Google Maps')}
+      ${app(d.waze, 'Waze')}
+      ${isAndroid ? `<a class="btn" href="${esc(d.geo)}">Other map app</a>` : ''}
+      ${navigator.share ? '<button type="button" class="btn" id="shareBtn">Share…</button>' : ''}
+      <button type="button" class="btn" id="copyBtn">Copy address</button>
+      <button type="button" class="btn" data-close>Cancel</button>
+    </div>`, (dlg) => {
+    $('#shareBtn', dlg)?.addEventListener('click', async () => {
+      try {
+        await navigator.share({ title: r.name, text: shareText, url: d.web });
+        closeSheet();
+      } catch {
+        // cancelled: leave the sheet open
+      }
+    });
+    $('#copyBtn', dlg).addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${d.web}`);
+        closeSheet();
+        toast('Address copied');
+      } catch {
+        toast('Could not copy');
+      }
+    });
+    for (const a of $$('a.btn', dlg)) a.addEventListener('click', () => setTimeout(closeSheet));
+  });
+}
 
 function renderList(tab) {
   const title = tab === 'totry' ? 'To Try' : 'Journal';
@@ -309,8 +354,9 @@ function renderDetail(path) {
   if (!r) return notFound();
   setTitle(r.name);
   const cover = r.photos[0]?.file;
+  const directions = directionLinks(r);
   const contact = [
-    r.address ? `<a href="${esc(mapsURL(r))}" target="_blank" rel="noopener">📍 ${esc(r.address)}</a>` : r.lat !== null ? `<a href="${esc(mapsURL(r))}" target="_blank" rel="noopener">📍 Open in Maps</a>` : '',
+    directions ? `<button type="button" class="contact-btn" data-directions>📍 ${esc(r.address || 'Directions')}</button>` : '',
     r.website ? `<a href="${esc(/^https?:/.test(r.website) ? r.website : 'https://' + r.website)}" target="_blank" rel="noopener">🌐 ${esc(r.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : '',
     r.phone ? `<a href="tel:${esc(r.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(r.phone)}</a>` : '',
   ].filter(Boolean);
@@ -319,6 +365,7 @@ function renderDetail(path) {
     <header class="bar">
       <a class="icon-btn" href="${homeOf(r)}" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
       <span class="grow"></span>
+      ${directions ? `<button type="button" class="icon-btn" data-directions aria-label="Directions and sharing">${ICONS.directions}</button>` : ''}
       <a class="text-btn" href="#/edit/${encodeURIComponent(r.path)}">Edit</a>
     </header>
     ${cover ? `<div class="cover"><img data-file="${esc(cover)}" alt=""></div>` : ''}
@@ -381,6 +428,7 @@ function renderDetail(path) {
     renderDetail(r.path);
   });
   $('#addVisit').addEventListener('click', () => editVisit(r, -1));
+  for (const b of $$('[data-directions]', main)) b.addEventListener('click', () => openDirections(r));
   if (pendingVisit === path) { pendingVisit = null; editVisit(r, -1); }
   $$('[data-visit]').forEach((b) => b.addEventListener('click', () => editVisit(r, Number(b.dataset.visit))));
   $('#addDish').addEventListener('click', () => editDish(r, -1));
