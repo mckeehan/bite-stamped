@@ -100,6 +100,23 @@ export async function searchPlaces(query, near = lastPosition) {
     .sort((a, b) => b.food - a.food || (a.distance ?? 0) - (b.distance ?? 0));
 }
 
+// Fallback when OpenStreetMap has nothing: Foursquare, through this app's own
+// server, which holds the API key. `apiBase` is where the app's API lives.
+const fallbackCache = new Map();
+export async function fallbackSearch(query, apiBase, near = lastPosition) {
+  const key = `${query.toLowerCase()}@${near ? `${near.lat.toFixed(2)},${near.lon.toFixed(2)}` : ''}`;
+  if (fallbackCache.has(key)) return fallbackCache.get(key);
+  const params = new URLSearchParams({ q: query });
+  if (near) { params.set('lat', near.lat.toFixed(3)); params.set('lon', near.lon.toFixed(3)); }
+  const res = await fetch(`${apiBase}/api/places/search?${params}`, { credentials: 'same-origin' });
+  if (!res.ok) throw new Error(`Search failed (${res.status})`);
+  const places = (await res.json()).places
+    .map((p) => ({ ...p, distance: near ? distance(near, p) : undefined }))
+    .sort((a, b) => b.food - a.food || (a.distance ?? 0) - (b.distance ?? 0));
+  fallbackCache.set(key, places);
+  return places;
+}
+
 const FOOD_TYPES = new Set(FOOD.map((t) => t.split('=')[1]).concat(['food_court', 'biergarten', 'pastry', 'deli', 'confectionery', 'coffee']));
 
 function toPlace(hit) {

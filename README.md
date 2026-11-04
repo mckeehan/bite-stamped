@@ -15,8 +15,9 @@ build step, no dependencies at all.
 - Photos with a title and date; any photo can be the cover
 - "Journal" and "To Try" lists, sorted by last visit, rating, visits, name, date
   added or distance, or shown on a map (OpenStreetMap)
-- Adding a place lists food places nearby and searches by name through
-  OpenStreetMap (online only, like the map images; everything else works offline)
+- Adding a place lists food places nearby and [searches by name](docs/place-search.md)
+  through OpenStreetMap, with Foursquare as an optional fallback (online only,
+  like the map images; everything else works offline)
 - Offline-first [sync](docs/sync.md) between devices, after signing in with an
   emailed code; conflicting edits are merged
 - [Storage and backup](docs/storage-and-backups.md) on your server: every
@@ -48,6 +49,7 @@ Settings (in `.env` or the environment):
 | `SMTP_URL`, `MAIL_FROM` | Email for sign-in codes: `smtps://user:pass@host:465` (TLS) or `smtp://user:pass@host:587` (STARTTLS). URL-encode `@` in user names as `%40`. Without `SMTP_URL`, codes are printed in the server log. |
 | `TRUST_PROXY` | `1` behind a reverse proxy, so the server sees the real `https://` address and client IPs. |
 | `BASE_PATH` | Serve the app below a path of an existing site, e.g. `/bites` for `https://example.com/bites/`. The proxy must pass the full path through ([Apache example](docs/https.md#below-a-path-of-an-existing-apache-site)). Default: the site root. |
+| `FOURSQUARE_API_KEY` | Optional. Turns on a [fallback place search](docs/place-search.md) through Foursquare when OpenStreetMap finds nothing. The key stays on the server. |
 
 For Gmail, use an [app password](https://support.google.com/accounts/answer/185833)
 with `smtps://you%40gmail.com:app-password@smtp.gmail.com:465`.

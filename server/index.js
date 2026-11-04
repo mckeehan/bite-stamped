@@ -20,6 +20,8 @@ const config = {
   trustProxy: env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true',
   // Serve the app below a path, e.g. /bites for https://example.com/bites/.
   basePath: String(env.BASE_PATH || '').replace(/\/+$/, ''),
+  // Optional fallback place search (Foursquare Places API service key).
+  foursquareKey: env.FOURSQUARE_API_KEY || '',
 };
 
 if (config.basePath && !/^(\/[\w.-]+)+$/.test(config.basePath)) {
@@ -33,6 +35,8 @@ if (config.smtpUrl && !config.mailFrom) {
 }
 if (!config.allowedEmails.length) console.warn('[bite-stamped] ALLOWED_EMAILS is empty: nobody can sign in to sync.');
 console.log(`[bite-stamped] sign-in codes go ${config.smtpUrl ? `by email via ${new URL(config.smtpUrl).hostname}` : 'to this log (no SMTP_URL set)'}`);
+
+if (config.foursquareKey) console.log('[bite-stamped] fallback place search through Foursquare is on');
 
 const app = createApp(config);
 

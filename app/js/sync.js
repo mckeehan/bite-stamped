@@ -14,7 +14,7 @@ const encodePath = (path) => path.split('/').map(encodeURIComponent).join('/');
 const decode = (bytes) => new TextDecoder().decode(bytes);
 
 export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base = '', onRemoteChange = () => {}, onState = () => {} }) {
-  const state = { status: 'idle', email: null, lastSync: null, pending: 0, error: '' };
+  const state = { status: 'idle', email: null, lastSync: null, pending: 0, error: '', fallbackSearch: false };
   let running = null;
   let again = false;
 
@@ -174,9 +174,10 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
     try {
       const res = await doFetch(`${base}/api/auth/me`, { credentials: 'same-origin' });
       if (res.ok) {
-        const { email } = await res.json();
+        // fallbackSearch: the server offers /api/places/search to this account.
+        const { email, fallbackSearch } = await res.json();
         await store.setMeta('account', email);
-        set({ email });
+        set({ email, fallbackSearch: Boolean(fallbackSearch) });
       }
     } catch {
       // offline: keep the remembered account
@@ -199,13 +200,14 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
       const data = await postJSON('/api/auth/verify', { email, code, device });
       await store.setMeta('account', data.email);
       set({ email: data.email, status: 'idle' });
+      await init(); // learns what the server offers this account
       await sync();
       return data;
     },
     async signOut() {
       try { await postJSON('/api/auth/logout', {}); } catch {}
       await store.setMeta('account', null);
-      set({ email: null, status: 'signed-out' });
+      set({ email: null, status: 'signed-out', fallbackSearch: false });
     },
   };
 }

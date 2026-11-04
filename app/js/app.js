@@ -3,7 +3,7 @@ import {
   newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
-import { searchPlaces, locate, nearbyFood, formatDistance } from './places.js';
+import { searchPlaces, locate, nearbyFood, formatDistance, fallbackSearch } from './places.js';
 import { createMap } from './map.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
@@ -718,11 +718,45 @@ function setUpPlacePicker(form) {
   };
   const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+  const nearbyMatching = (q) => {
+    const fq = fold(q);
+    return q ? nearby.filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq)) : nearby;
+  };
+
+  // Fallback search (Foursquare, through our server; only when the server has a
+  // key): when OpenStreetMap has nothing for what was typed, either after a
+  // Search or once typing has paused long enough to look finished.
+  let foundFrom = '';      // '' (OpenStreetMap) or 'foursquare'
+  let nearbyLoading = true;
+  let typingTimer = 0;
+  const TYPING_PAUSE = 1500;
+  const fallbackReady = (q) => sync.state.fallbackSearch && navigator.onLine && q.length >= 3;
+  const runFallback = async (q) => {
+    status.textContent = 'Not on OpenStreetMap. Searching Foursquare…';
+    try {
+      const results = await fallbackSearch(q, apiBase);
+      if (input.value.trim() !== q) return;
+      found = withoutDuplicates(results);
+      foundFor = q;
+      foundFrom = 'foursquare';
+      render();
+    } catch {
+      if (input.value.trim() === q) status.textContent = 'Search is not available right now.';
+    }
+  };
+  const fallbackAfterTyping = () => {
+    clearTimeout(typingTimer);
+    const q = input.value.trim();
+    if (found || nearbyLoading || !fallbackReady(q) || nearbyMatching(q).length) return;
+    typingTimer = setTimeout(() => {
+      if (input.value.trim() === q && !found) runFallback(q);
+    }, TYPING_PAUSE);
+  };
+
   const render = () => {
     const q = input.value.trim();
     if (found && foundFor !== q) found = null;
-    const fq = fold(q);
-    const matching = q ? nearby.filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq)) : nearby;
+    const matching = nearbyMatching(q);
     shown = (found ? found : matching.slice(0, 60)).map((p) => ({ ...p, mine: findInJournal(p, journal) }));
     list.innerHTML = shown.map((p, i) => `
       <li${p.mine ? ' class="in-journal"' : ''}><button type="button" data-place="${i}">
@@ -732,13 +766,22 @@ function setUpPlacePicker(form) {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </button></li>`).join('');
     status.textContent = found
-      ? (found.length ? '' : `Nothing found for “${q}”.`)
+      ? (found.length ? (foundFrom === 'foursquare' ? 'Not on OpenStreetMap. Results from Foursquare.' : '') : `Nothing found for “${q}”.`)
       : q
         ? `${matching.length ? '' : 'No match nearby. '}Press Search to look everywhere for “${q}”.`
         : nearbyNote;
   };
 
   const loadNearby = async () => {
+    try {
+      await findNearby();
+    } finally {
+      nearbyLoading = false;
+      fallbackAfterTyping();
+    }
+  };
+
+  const findNearby = async () => {
     if (!navigator.onLine) { nearbyNote = 'You are offline. Add a custom location below.'; return render(); }
     nearbyNote = 'Finding food places near you…';
     render();
@@ -763,21 +806,27 @@ function setUpPlacePicker(form) {
     const q = input.value.trim();
     if (!q) return;
     if (!navigator.onLine) { status.textContent = 'You are offline. Add a custom location below.'; return; }
+    clearTimeout(typingTimer);
     status.textContent = 'Searching…';
     try {
       const results = await searchPlaces(q);
       if (input.value.trim() !== q) return;
       // Nearby matches stay on top.
-      const fq = fold(q);
-      const close = nearby.filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq));
-      found = withoutDuplicates([...close, ...results]);
+      const both = withoutDuplicates([...nearbyMatching(q), ...results]);
+      if (!both.length && fallbackReady(q)) return runFallback(q);
+      found = both;
       foundFor = q;
+      foundFrom = '';
       render();
     } catch {
+      if (fallbackReady(q)) return runFallback(q);
       status.textContent = 'Search is not available right now.';
     }
   });
-  input.addEventListener('input', render);
+  input.addEventListener('input', () => {
+    render();
+    fallbackAfterTyping();
+  });
 
   const showForm = () => {
     picker.hidden = true;
@@ -894,6 +943,7 @@ async function renderSettings() {
     <section class="block">
       <h2>Place search and maps</h2>
       <p class="muted small">When you add a restaurant, your rough location (if you allow it) goes to OpenStreetMap’s Nominatim service to list food places nearby, and so does any text you search for. The map view loads its map images from OpenStreetMap, which shows them the area you look at. Sorting by “Nearest” uses your location on this device only.</p>
+      <p class="muted small" id="fallbackNote"${sync.state.fallbackSearch ? '' : ' hidden'}>When OpenStreetMap has nothing for what you typed, the search text and your rough location (to about 100 m) go through this app’s server to Foursquare, which searches its own list of places.</p>
     </section>
     <section class="block">
       <h2>Start over</h2>
@@ -956,6 +1006,8 @@ const sync = createSync({
     updateTabs();
     // Never redraw the sign-in form while someone may be typing in it.
     if ($('#syncSection') && !$('#signIn')) renderSyncSection();
+    // The server says whether it offers the fallback search after Settings is drawn.
+    if ($('#fallbackNote')) $('#fallbackNote').hidden = !sync.state.fallbackSearch;
   },
 });
 

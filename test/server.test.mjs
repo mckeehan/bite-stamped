@@ -49,7 +49,7 @@ test('sign-in sets an HttpOnly cookie that opens the API', async () => {
   const res = await post(f, '/api/auth/verify', { email: 'me@example.com', code: srv.codes.get('me@example.com') });
   assert.match(res.headers.get('Set-Cookie'), /HttpOnly; SameSite=Strict.*Secure/);
   assert.equal((await f('/api/changes')).status, 200);
-  assert.deepEqual(await (await f('/api/auth/me')).json(), { email: 'me@example.com' });
+  assert.deepEqual(await (await f('/api/auth/me')).json(), { email: 'me@example.com', fallbackSearch: false });
 
   await post(f, '/api/auth/logout', {});
   assert.equal((await f('/api/changes')).status, 401);
