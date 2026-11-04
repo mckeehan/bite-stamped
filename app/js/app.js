@@ -102,7 +102,7 @@ function setTitle(text) {
 }
 
 // --- list ---
-// Two top-level lists, "Been" (#/) and "To Try" (#/totry), each as a list or
+// Two top-level lists, "Journal" (#/) and "To Try" (#/totry), each as a list or
 // a map, with its own sort order (remembered on this device).
 
 const SORTS = {
@@ -143,7 +143,7 @@ const ICONS = {
 };
 
 function renderList(tab) {
-  const title = tab === 'totry' ? 'To Try' : 'Been';
+  const title = tab === 'totry' ? 'To Try' : 'Journal';
   setTitle(tab === 'totry' ? title : '');
   const everything = repo.all();
   const sort = () => listState.sorts[tab];
