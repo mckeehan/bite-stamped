@@ -65,6 +65,10 @@ Without the key the fallback is off and the app never mentions Foursquare.
 - Results are turned into the same shape as OpenStreetMap results, so
   picking one fills in the same fields (name, address, city, state, country,
   phone, website, location and cuisine from Foursquare's categories).
+- Some Foursquare places come with a location but no address. When you pick
+  one, the app looks the address up from the location with Nominatim's
+  reverse geocoding (one request) and fills in only the fields that are still
+  empty. The form says the address came from OpenStreetMap, so you can check it.
 
 ### Privacy
 

@@ -5,27 +5,51 @@
 
 import { distance } from './model.js';
 
-const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
+const SERVER = 'https://nominatim.openstreetmap.org';
 
 // Requests go out one at a time, at least 1.1 s apart.
 let queue = Promise.resolve();
 let lastRequest = 0;
-function nominatim(params) {
+function request(path, params) {
   const run = async () => {
     const wait = lastRequest + 1100 - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     lastRequest = Date.now();
     params.set('format', 'jsonv2');
     params.set('addressdetails', '1');
-    params.set('extratags', '1');
     params.set('accept-language', navigator.language || 'en');
-    const res = await fetch(`${ENDPOINT}?${params}`, { headers: { Accept: 'application/json' } });
+    const res = await fetch(`${SERVER}/${path}?${params}`, { headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error(`Search failed (${res.status})`);
-    return (await res.json()).filter((hit) => hit.name).map(toPlace);
+    return res.json();
   };
   const result = queue.then(run, run);
   queue = result.catch(() => {});
   return result;
+}
+
+async function nominatim(params) {
+  params.set('extratags', '1');
+  return (await request('search', params)).filter((hit) => hit.name).map(toPlace);
+}
+
+// The street address at a point, for places found elsewhere (Foursquare) that
+// come with a location but no address: { street, city, state, country,
+// countryCode, postcode }, or null if there is none.
+export async function addressAt({ lat, lon }) {
+  const hit = await request('reverse', new URLSearchParams({ lat: String(lat), lon: String(lon), zoom: '18' }));
+  if (!hit || hit.error || !hit.address) return null;
+  return addressParts(hit.address);
+}
+
+function addressParts(a) {
+  return {
+    street: [a.house_number, a.road].filter(Boolean).join(' '),
+    city: a.city || a.town || a.village || a.municipality || a.suburb || '',
+    state: a.state || '',
+    country: a.country || '',
+    countryCode: (a.country_code || '').toUpperCase(),
+    postcode: a.postcode || '',
+  };
 }
 
 // Kinds of food places, most common first: the list fills in as each arrives.
@@ -120,21 +144,19 @@ export async function fallbackSearch(query, apiBase, near = lastPosition) {
 const FOOD_TYPES = new Set(FOOD.map((t) => t.split('=')[1]).concat(['food_court', 'biergarten', 'pastry', 'deli', 'confectionery', 'coffee']));
 
 function toPlace(hit) {
-  const a = hit.address || {};
   const t = hit.extratags || {};
-  const street = [a.house_number, a.road].filter(Boolean).join(' ');
-  const city = a.city || a.town || a.village || a.municipality || a.suburb || '';
+  const { street, city, state, country, countryCode, postcode } = addressParts(hit.address || {});
   return {
     id: `${hit.osm_type}${hit.osm_id}`,
     food: FOOD_TYPES.has(hit.type) && ['amenity', 'shop'].includes(hit.category),
     name: hit.name || hit.display_name.split(',')[0],
     kind: (hit.type || '').replace(/_/g, ' '),
-    address: [street, [a.postcode, city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+    address: [street, [postcode, city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
     street,
     city,
-    state: a.state || '',
-    country: a.country || '',
-    countryCode: (a.country_code || '').toUpperCase(),
+    state,
+    country,
+    countryCode,
     lat: Number(hit.lat),
     lon: Number(hit.lon),
     website: t.website || t['contact:website'] || '',

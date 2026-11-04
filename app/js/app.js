@@ -3,7 +3,7 @@ import {
   newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
-import { searchPlaces, locate, nearbyFood, formatDistance, fallbackSearch } from './places.js';
+import { searchPlaces, locate, nearbyFood, formatDistance, fallbackSearch, addressAt } from './places.js';
 import { createMap } from './map.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
@@ -610,6 +610,7 @@ function renderEdit(path, params) {
       ${existing ? '' : `<p class="muted small visit-note" id="visitNote"${r.toTry ? ' hidden' : ''}>Saving also adds a visit for ${esc(formatDateTime(now()))}.</p>`}
       <label>Cuisine <input name="cuisine" value="${esc(r.cuisine)}" placeholder="e.g. Thai, Pizza" autocomplete="off"></label>
       <label>Address <input name="address" value="${esc(r.address)}" autocomplete="off"></label>
+      ${existing ? '' : '<p class="muted small" id="addressNote" role="status" hidden></p>'}
       <div class="two">
         <label>City <input name="city" value="${esc(r.city)}" autocomplete="off"></label>
         <label>State / region <input name="state" value="${esc(r.state)}" autocomplete="off"></label>
@@ -839,6 +840,8 @@ function setUpPlacePicker(form) {
     picker.hidden = true;
     form.hidden = false;
     $('#saveBtn').hidden = false;
+    $('#addressNote').hidden = true;
+    addressFor = null;
     window.scrollTo(0, 0);
   };
 
@@ -856,6 +859,27 @@ function setUpPlacePicker(form) {
       form[key].value = value === undefined || Number.isNaN(value) ? '' : value;
     }
     showForm();
+    if (!p.street && Number.isFinite(p.lat) && Number.isFinite(p.lon)) fillAddress(p);
+  };
+
+  // Some places (from Foursquare) have a location but no address: look the
+  // address up from the location, and fill in only fields that are still empty.
+  let addressFor = null;
+  const fillAddress = async (p) => {
+    if (!navigator.onLine) return;
+    const note = $('#addressNote');
+    addressFor = p;
+    note.textContent = 'Looking up the address…';
+    note.hidden = false;
+    let found = null;
+    try { found = await addressAt(p); } catch {}
+    if (addressFor !== p || form.hidden) return;
+    if (found) {
+      for (const [field, value] of [['address', found.street], ['city', found.city], ['state', found.state], ['country', found.country], ['countryCode', found.countryCode]]) {
+        if (value && !form[field].value.trim()) form[field].value = value;
+      }
+    }
+    note.textContent = found?.street ? 'Address from OpenStreetMap, based on the location. Check that it is right.' : 'No address found for this location.';
   };
 
   // A place already in the journal: add a visit to it, or make a new restaurant anyway.
