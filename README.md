@@ -199,7 +199,9 @@ path of your `node` (`which node`).
 
 To update: `git pull`, then restart the service. Bump `VERSION` in
 `app/sw.js` with every change to the app (and add new files to its list) so
-installed copies update.
+installed copies update. They pick up the new version the next time they are
+opened or brought to the front, and reload into it as soon as nothing is being
+edited.
 
 ## How offline-first sync works
 

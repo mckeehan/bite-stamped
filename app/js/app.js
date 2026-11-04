@@ -957,14 +957,60 @@ function render() {
   return renderList();
 }
 
-window.addEventListener('hashchange', route);
+// --- app updates ---
+// A new version installs in the background (sw.js) and takes over at once;
+// the page then reloads into it, but only on the list or a restaurant page
+// with nothing open, so no edit is lost. Otherwise it waits for the next
+// change of screen.
+
+let updateReady = false;
+const UPDATED_FLAG = 'bite-stamped-updated';
+
+function safeToReload() {
+  const screen = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
+  return (screen === '' || screen === 'r') && !sheet.open;
+}
+
+function reloadIfUpdated() {
+  if (!updateReady || !safeToReload()) return false;
+  try { sessionStorage.setItem(UPDATED_FLAG, '1'); } catch {}
+  location.reload();
+  return true;
+}
+
+function watchForUpdates() {
+  if (!('serviceWorker' in navigator)) return;
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // first install, not an update
+    updateReady = true;
+    reloadIfUpdated();
+  });
+  navigator.serviceWorker.register('sw.js')
+    .then((reg) => {
+      // Installed apps resume without a page load, so look for updates then too.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch((e) => console.warn('Service worker:', e));
+  sheet.addEventListener('close', () => setTimeout(reloadIfUpdated));
+  try {
+    if (sessionStorage.getItem(UPDATED_FLAG)) {
+      sessionStorage.removeItem(UPDATED_FLAG);
+      toast(`${APP_NAME} was updated`);
+    }
+  } catch {}
+}
+
+window.addEventListener('hashchange', () => {
+  if (!reloadIfUpdated()) route();
+});
 
 (async () => {
   await repo.loadAll();
   route();
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker:', e));
-  }
+  watchForUpdates();
   await sync.init();
   sync.sync();
 })();
