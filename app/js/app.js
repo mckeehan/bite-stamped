@@ -607,6 +607,7 @@ function renderEdit(path, params) {
       <label>Name <input name="name" value="${esc(r.name)}" required autocomplete="off"></label>
       <div class="field"><span>Rating</span>${stars(r.rating, { input: true, size: 'large' })}</div>
       <label class="check"><input type="checkbox" name="toTry"${r.toTry ? ' checked' : ''}> I want to try this place</label>
+      ${existing ? '' : `<p class="muted small visit-note" id="visitNote"${r.toTry ? ' hidden' : ''}>Saving also adds a visit for ${esc(formatDateTime(now()))}.</p>`}
       <label>Cuisine <input name="cuisine" value="${esc(r.cuisine)}" placeholder="e.g. Thai, Pizza" autocomplete="off"></label>
       <label>Address <input name="address" value="${esc(r.address)}" autocomplete="off"></label>
       <div class="two">
@@ -625,7 +626,10 @@ function renderEdit(path, params) {
 
   const form = $('#editForm');
 
-  if (!existing) setUpPlacePicker(form);
+  if (!existing) {
+    setUpPlacePicker(form);
+    form.toTry.addEventListener('change', () => { $('#visitNote').hidden = form.toTry.checked; });
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -648,6 +652,9 @@ function renderEdit(path, params) {
       lon: f.lon.value === '' ? null : Number(f.lon.value),
     });
     if (!r.name) return;
+    // A new place that isn't just "to try" was visited: record a visit for now,
+    // with the rating given here.
+    if (!existing && !r.toTry) r.visits = [{ date: now(), rating: r.rating, people: [], notes: '' }];
     const saved = await repo.save(r);
     location.replace(link(saved.path));
   });
