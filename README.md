@@ -20,45 +20,9 @@ build step, no dependencies at all.
 
 ## Data format
 
-Each restaurant is one Markdown file with a YAML header. Images sit next to
-them in `media/`:
-
-```
-restaurants/trattoria-da-luca.md
-media/trattoria-da-luca/mw0ryxwb-oxql.jpg
-```
-
-```markdown
----
-name: Trattoria da Luca
-rating: 5
-cuisine: Italian
-city: Knoxville
-tags:
-- date night
-visits:
-- date: 2026-10-12
-  rating: 5
-  people:
-  - Anna
-  notes: Anniversary dinner
-dishes:
-- name: Cacio e pepe
-  rating: 5
-  price: $19
-  image: media/trattoria-da-luca/mw0rzrfs-oaod.jpg
-photos:
-- file: media/trattoria-da-luca/mw0ryxwb-oxql.jpg
-  title: "Patio: table #4, golden hour"
-  date: 2026-10-12
----
-
-Ask for the **cacio e pepe**.
-```
-
-**Settings → Export ZIP** gives you the files from a device; edit them with
-any editor (Obsidian works well) and **Import ZIP** them again. Files with the
-same path are replaced, everything else is kept (and then synced).
+Each restaurant is one Markdown file with a YAML header, with its images in
+`media/`; export and import use the same files. Details and an example:
+[docs/data-format.md](docs/data-format.md).
 
 ## Run the server
 
@@ -98,7 +62,9 @@ Back up the whole folder (with the server stopped, or use
 `sqlite3 bite-stamped.sqlite ".backup copy.sqlite"` for the database). `files/` is a
 convenient read-only view: edits made there are not synced; use Export/Import
 in the app for that. Deleting something in the app only marks it deleted, so
-its versions stay in `versions/`.
+its versions stay in `versions/`. How the history works, what it does and
+doesn't protect against, and how to restore an old version:
+[docs/storage-and-backups.md](docs/storage-and-backups.md).
 
 ### HTTPS (needed on the phone)
 
@@ -118,7 +84,7 @@ Set `TRUST_PROXY=1` in both cases.
 
 ### Below a path of an existing Apache site
 
-For example `https://ki4hdu.com/bites/`. In `.env`:
+For example `https://www.example.com/bites/`. In `.env`:
 
 ```
 HOST=127.0.0.1
@@ -153,53 +119,13 @@ subdomain.
 
 ### Run it as a service
 
-**Linux (systemd)** – `/etc/systemd/system/bite-stamped.service`:
+Examples for Linux (systemd) and macOS (launchd):
+[docs/run-as-a-service.md](docs/run-as-a-service.md).
 
-```ini
-[Unit]
-Description=Bite-Stamped restaurant journal
-After=network-online.target
+### Update
 
-[Service]
-User=bite-stamped
-WorkingDirectory=/opt/bite-stamped
-ExecStart=/usr/bin/node --env-file=.env --disable-warning=ExperimentalWarning server/index.js
-Restart=on-failure
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/opt/bite-stamped/data
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Then `sudo systemctl enable --now bite-stamped` and `journalctl -u bite-stamped -f` for the log.
-
-**macOS (launchd)** – `~/Library/LaunchAgents/com.example.bite-stamped.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.example.bite-stamped</string>
-  <key>WorkingDirectory</key><string>/Users/you/bite-stamped</string>
-  <key>ProgramArguments</key><array>
-    <string>/usr/local/bin/node</string>
-    <string>--env-file=.env</string>
-    <string>--disable-warning=ExperimentalWarning</string>
-    <string>server/index.js</string>
-  </array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>/Users/you/bite-stamped/data/bite-stamped.log</string>
-  <key>StandardErrorPath</key><string>/Users/you/bite-stamped/data/bite-stamped.log</string>
-</dict></plist>
-```
-
-Then `launchctl load ~/Library/LaunchAgents/com.example.bite-stamped.plist`. Use the
-path of your `node` (`which node`).
-
-To update: `git pull`, then restart the service. With every change to the
+To update: `git pull`, then restart the service
+([how](docs/run-as-a-service.md#restart-after-an-update)). With every change to the
 app, raise the version and date in `app/js/version.js` (shown at the bottom
 of Settings) and the same version in `VERSION` in `app/sw.js` (`npm test`
 checks they match), and add new files to the list in `app/sw.js`, so
