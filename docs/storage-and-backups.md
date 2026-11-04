@@ -19,6 +19,10 @@ files/<path>             the current version of each file, as plain files
 `<path>` is the file's path in the journal: `restaurants/<name>.md`, or an
 image under `media/` (see [data-format.md](data-format.md)).
 
+`files/` is a convenient read-only view for browsing the Markdown and images.
+Edits made there are not synced; to change files outside
+the app, use **Settings → Export ZIP** and **Import ZIP**.
+
 ## What happens on a save
 
 1. A device uploads a file (`PUT /api/files/<path>`). The server gives the
@@ -51,7 +55,7 @@ stays in `versions/<path>/`.
 If an upload loses a conflict, because another device changed the file first,
 the server removes the revision it just wrote. That revision never became
 current, and the device that sent it merges the two versions and uploads
-again (see "How offline-first sync works" in the README).
+again (see [sync.md](sync.md)).
 
 ## What this protects against and what it doesn't
 

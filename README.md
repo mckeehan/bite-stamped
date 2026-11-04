@@ -6,6 +6,8 @@ a small server you host yourself, which also keeps every version of every file
 as a backup. Plain HTML, CSS and JavaScript plus Node.js: no frameworks, no
 build step, no dependencies at all.
 
+## Features
+
 - Restaurants with rating, "to try" flag, cuisine, address, website, phone, tags
   and Markdown notes
 - Visits with date, rating, people and notes
@@ -15,14 +17,14 @@ build step, no dependencies at all.
   added or distance, or shown on a map (OpenStreetMap)
 - Adding a place lists food places nearby and searches by name through
   OpenStreetMap (online only, like the map images; everything else works offline)
-- Sync between devices and server backup, after signing in with an emailed code
-- Export and import as a ZIP of Markdown files
-
-## Data format
-
-Each restaurant is one Markdown file with a YAML header, with its images in
-`media/`; export and import use the same files. Details and an example:
-[docs/data-format.md](docs/data-format.md).
+- Offline-first [sync](docs/sync.md) between devices, after signing in with an
+  emailed code; conflicting edits are merged
+- [Storage and backup](docs/storage-and-backups.md) on your server: every
+  version of every file is kept
+- Export and import as a ZIP of Markdown files with YAML headers
+  ([data format](docs/data-format.md))
+- [Bring over your data from Eatlist](docs/import-from-eatlist.md) (on a Mac):
+  restaurants, visits, people, dishes and photos, as a ZIP to import
 
 ## Run the server
 
@@ -41,7 +43,7 @@ Settings (in `.env` or the environment):
 | Variable | Meaning |
 |---|---|
 | `PORT`, `HOST` | Where to listen. Default `8080` on `127.0.0.1`; use `0.0.0.0` to reach it from other devices without a proxy. |
-| `DATA_DIR` | Where the data goes. Default `./data`. |
+| `DATA_DIR` | Where the data goes. Default `./data`. Back it up; see [what is in it](docs/storage-and-backups.md#what-is-in-data_dir). |
 | `ALLOWED_EMAILS` | Comma-separated addresses that may sign in. Removing an address ends its sessions. |
 | `SMTP_URL`, `MAIL_FROM` | Email for sign-in codes: `smtps://user:pass@host:465` (TLS) or `smtp://user:pass@host:587` (STARTTLS). URL-encode `@` in user names as `%40`. Without `SMTP_URL`, codes are printed in the server log. |
 | `TRUST_PROXY` | `1` behind a reverse proxy, so the server sees the real `https://` address and client IPs. |
@@ -49,22 +51,6 @@ Settings (in `.env` or the environment):
 
 For Gmail, use an [app password](https://support.google.com/accounts/answer/185833)
 with `smtps://you%40gmail.com:app-password@smtp.gmail.com:465`.
-
-### What is in `DATA_DIR`
-
-```
-bite-stamped.sqlite      file index, change counter, login codes, sessions
-versions/<path>/<rev>    every version of every file: the backup history
-files/<path>             the current Markdown and images as plain files
-```
-
-Back up the whole folder (with the server stopped, or use
-`sqlite3 bite-stamped.sqlite ".backup copy.sqlite"` for the database). `files/` is a
-convenient read-only view: edits made there are not synced; use Export/Import
-in the app for that. Deleting something in the app only marks it deleted, so
-its versions stay in `versions/`. How the history works, what it does and
-doesn't protect against, and how to restore an old version:
-[docs/storage-and-backups.md](docs/storage-and-backups.md).
 
 ### HTTPS (needed on the phone)
 
@@ -86,39 +72,3 @@ checks they match), and add new files to the list in `app/sw.js`, so
 installed copies update. They pick up the new version the next time they are
 opened or brought to the front, and reload into it as soon as nothing is being
 edited.
-
-## How offline-first sync works
-
-- Every device keeps the full journal in the browser's IndexedDB. The app only
-  ever reads and writes that copy, so it works the same with or without a
-  connection.
-- Each local file remembers the server version it is based on and whether it
-  changed since. When the device is online and signed in, it uploads its
-  changes (`PUT` with `If-Match`), then asks the server for everything that
-  changed since its last sync (a change counter).
-- If a file changed elsewhere first, the server answers 409 and the device
-  merges both versions of the restaurant (visits, dishes, photos and tags are
-  combined; single values keep this device's edit) and uploads the merge. An
-  edit wins over a deletion.
-- Each server's data has a random id. If a device meets a different one (a new
-  or restored server), it uploads its whole copy again, merging with what is
-  there, and downloads everything.
-- Sync runs after each change (after 1.5 s), when the app comes back online or
-  to the foreground, and every 5 minutes while it is open.
-
-Sign-in: only addresses in `ALLOWED_EMAILS` get a code (valid 10 minutes, five
-tries). A correct code sets an HttpOnly session cookie for a year. Writes also
-need an `X-Bite-Stamped` header from the same origin; sign-in requests are limited per
-client address; responses carry a strict Content Security Policy.
-
-## Bring over data from Eatlist
-
-On a Mac with the Eatlist app installed (and synced from iCloud):
-
-```bash
-npm run import-eatlist                # writes ~/Downloads/eatlist-for-bite-stamped-<date>.zip
-```
-
-Then import that ZIP in the app (Settings → Import ZIP); it syncs from there.
-The script only reads a copy of Eatlist's database. The ZIP holds your
-personal data: keep it out of this public repo (`*.zip` is git-ignored).
