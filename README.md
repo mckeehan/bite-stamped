@@ -11,7 +11,8 @@ build step, no dependencies at all.
 - Visits with date, rating, people and notes
 - Dishes with rating, price, notes and an image
 - Photos with a title and date; any photo can be the cover
-- Place search through OpenStreetMap (online only; everything else works offline)
+- Adding a place lists food places nearby and searches by name through
+  OpenStreetMap (online only; everything else works offline)
 - Sync between devices and server backup, after signing in with an emailed code
 - Export and import as a ZIP of Markdown files
 

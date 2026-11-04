@@ -3,7 +3,7 @@ import {
   newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today,
 } from './model.js';
 import { renderMarkdown } from './md.js';
-import { searchPlaces, locate } from './places.js';
+import { searchPlaces, locate, nearbyFood, formatDistance } from './places.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
 import { createSync } from './sync.js';
@@ -472,17 +472,19 @@ function renderEdit(path, params) {
     <header class="bar">
       <a class="text-btn" href="${back}">Cancel</a>
       <h1 class="center">${existing ? 'Edit' : 'New restaurant'}</h1>
-      <button class="text-btn strong" form="editForm">Save</button>
+      <button class="text-btn strong" form="editForm" id="saveBtn"${existing ? '' : ' hidden'}>Save</button>
     </header>
-    <form id="editForm" class="edit-form">
-      ${existing ? '' : `
-      <div class="place-search">
-        <div class="row">
-          <input type="search" id="placeQuery" placeholder="Search for a place (online)" autocomplete="off" enterkeyhint="search">
-          <button type="button" class="btn" id="placeGo">Search</button>
-        </div>
-        <ul class="results" id="placeResults"></ul>
-      </div>`}
+    ${existing ? '' : `
+    <section class="place-picker" id="placePicker">
+      <form class="search-row" id="placeSearch" role="search">
+        <input type="search" id="placeQuery" placeholder="Search for restaurant" autocomplete="off" enterkeyhint="search" aria-label="Search for restaurant">
+      </form>
+      <p class="muted small picker-status" id="placeStatus"></p>
+      <ul class="place-list" id="placeResults"></ul>
+      <button type="button" class="text-btn custom-place" id="customPlace">Not there? Add a custom location</button>
+    </section>`}
+    <form id="editForm" class="edit-form"${existing ? '' : ' hidden'}>
+      ${existing ? '' : '<button type="button" class="text-btn back-to-search" id="backToSearch">‹ Search again</button>'}
       <label>Name <input name="name" value="${esc(r.name)}" required autocomplete="off"></label>
       <div class="field"><span>Rating</span>${stars(r.rating, { input: true, size: 'large' })}</div>
       <label class="check"><input type="checkbox" name="toTry"${r.toTry ? ' checked' : ''}> I want to try this place</label>
@@ -504,37 +506,7 @@ function renderEdit(path, params) {
 
   const form = $('#editForm');
 
-  if (!existing) {
-    locate();
-    let results = [];
-    const go = async () => {
-      const q = $('#placeQuery').value.trim();
-      if (!q) return;
-      const list = $('#placeResults');
-      if (!navigator.onLine) { list.innerHTML = '<li class="muted small">You are offline. Fill in the details by hand.</li>'; return; }
-      list.innerHTML = '<li class="muted small">Searching…</li>';
-      try {
-        results = await searchPlaces(q);
-        list.innerHTML = results.length
-          ? results.map((p, i) => `<li><button type="button" data-place="${i}"><strong>${esc(p.name)}</strong><small>${esc([p.kind, p.address || p.display].filter(Boolean).join(' · '))}</small></button></li>`).join('')
-          : '<li class="muted small">No places found. Fill in the details by hand.</li>';
-      } catch {
-        list.innerHTML = '<li class="muted small">Search is not available right now.</li>';
-      }
-    };
-    $('#placeGo').addEventListener('click', go);
-    $('#placeQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
-    $('#placeResults').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-place]');
-      if (!b) return;
-      const p = results[Number(b.dataset.place)];
-      for (const key of ['name', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) {
-        if (p[key] !== '' && p[key] !== undefined && !Number.isNaN(p[key])) form[key].value = p[key];
-      }
-      $('#placeResults').innerHTML = '';
-      $('#placeQuery').value = '';
-    });
-  }
+  if (!existing) setUpPlacePicker(form);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -560,6 +532,126 @@ function renderEdit(path, params) {
     const saved = await repo.save(r);
     location.replace(link(saved.path));
   });
+}
+
+// New restaurant: first pick a place (food places nearby, filtered as you type;
+// press Search to look further), or open the empty form for a custom one.
+function setUpPlacePicker(form) {
+  const picker = $('#placePicker');
+  const input = $('#placeQuery');
+  const list = $('#placeResults');
+  const status = $('#placeStatus');
+  let nearby = [];   // food places around the device
+  let found = null;  // results of the last Search, for `foundFor`
+  let foundFor = '';
+  let shown = [];
+  let nearbyNote = '';
+
+  // One entry per place: OpenStreetMap sometimes has a place as both a point and a building.
+  const withoutDuplicates = (places) => {
+    const seen = new Set();
+    return places.filter((p) => {
+      const key = `${fold(p.name)}@${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
+      if (seen.has(p.id) || seen.has(key)) return false;
+      seen.add(p.id).add(key);
+      return true;
+    });
+  };
+  const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  const render = () => {
+    const q = input.value.trim();
+    if (found && foundFor !== q) found = null;
+    const fq = fold(q);
+    const matching = q ? nearby.filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq)) : nearby;
+    shown = found ? found : matching.slice(0, 60);
+    list.innerHTML = shown.map((p, i) => `
+      <li><button type="button" data-place="${i}">
+        <span class="place-text"><strong>${esc(p.name)}</strong><small>${esc(p.address || p.display || p.kind)}</small></span>
+        <span class="place-dist muted">${p.distance === undefined ? '' : esc(formatDistance(p.distance))}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+      </button></li>`).join('');
+    status.textContent = found
+      ? (found.length ? '' : `Nothing found for “${q}”.`)
+      : q
+        ? `${matching.length ? '' : 'No match nearby. '}Press Search to look everywhere for “${q}”.`
+        : nearbyNote;
+  };
+
+  const loadNearby = async () => {
+    if (!navigator.onLine) { nearbyNote = 'You are offline. Add a custom location below.'; return render(); }
+    nearbyNote = 'Finding food places near you…';
+    render();
+    const here = await locate();
+    if (!here) {
+      nearbyNote = locate.denied
+        ? 'Allow location access to see places near you, or search by name.'
+        : 'Your location is not available. Search by name instead.';
+      return render();
+    }
+    try {
+      nearby = withoutDuplicates(await nearbyFood(here, (sofar) => { nearby = withoutDuplicates(sofar); nearbyNote = ''; render(); }));
+      nearbyNote = nearby.length ? '' : 'No food places found nearby. Search by name instead.';
+    } catch {
+      nearbyNote = 'Places nearby are not available right now. Search by name instead.';
+    }
+    render();
+  };
+
+  $('#placeSearch').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if (!q) return;
+    if (!navigator.onLine) { status.textContent = 'You are offline. Add a custom location below.'; return; }
+    status.textContent = 'Searching…';
+    try {
+      const results = await searchPlaces(q);
+      if (input.value.trim() !== q) return;
+      // Nearby matches stay on top.
+      const fq = fold(q);
+      const close = nearby.filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq));
+      found = withoutDuplicates([...close, ...results]);
+      foundFor = q;
+      render();
+    } catch {
+      status.textContent = 'Search is not available right now.';
+    }
+  });
+  input.addEventListener('input', render);
+
+  const showForm = () => {
+    picker.hidden = true;
+    form.hidden = false;
+    $('#saveBtn').hidden = false;
+    window.scrollTo(0, 0);
+  };
+
+  list.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-place]');
+    if (!b) return;
+    const p = shown[Number(b.dataset.place)];
+    for (const key of ['name', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) {
+      const value = key === 'address' && p.street !== undefined ? p.street : p[key];
+      form[key].value = value === undefined || Number.isNaN(value) ? '' : value;
+    }
+    showForm();
+  });
+
+  $('#customPlace').addEventListener('click', () => {
+    for (const key of ['cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) form[key].value = '';
+    form.name.value = input.value.trim();
+    showForm();
+    form.name.focus();
+  });
+
+  $('#backToSearch').addEventListener('click', () => {
+    form.hidden = true;
+    $('#saveBtn').hidden = true;
+    picker.hidden = false;
+    input.focus();
+  });
+
+  loadNearby();
 }
 
 // --- settings ---
@@ -603,7 +695,7 @@ async function renderSettings() {
     </section>
     <section class="block">
       <h2>Place search</h2>
-      <p class="muted small">Searching for a place sends your search text, and your rough location if you allow it, to OpenStreetMap’s Nominatim service.</p>
+      <p class="muted small">When you add a restaurant, your rough location (if you allow it) goes to OpenStreetMap’s Nominatim service to list food places nearby, and so does any text you search for.</p>
     </section>
     <section class="block">
       <h2>Start over</h2>
