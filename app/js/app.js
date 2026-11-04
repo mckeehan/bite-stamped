@@ -1,9 +1,10 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, findInJournal,
+  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyFood, formatDistance } from './places.js';
+import { createMap } from './map.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
 import { createSync } from './sync.js';
@@ -101,91 +102,172 @@ function setTitle(text) {
 }
 
 // --- list ---
+// Two top-level lists, "Been" (#/) and "To Try" (#/totry), each as a list or
+// a map, with its own sort order (remembered on this device).
 
-const listState = { tab: 'visited', query: '', sort: 'recent' };
+const SORTS = {
+  visited: [['recent', 'Last visit'], ['rating', 'Rating'], ['visits', 'Most visits'], ['nearest', 'Nearest'], ['name', 'Name'], ['added', 'Date added']],
+  totry: [['added', 'Date added'], ['nearest', 'Nearest'], ['name', 'Name']],
+};
+const listState = { view: 'list', query: '', sorts: { visited: 'recent', totry: 'added' } };
 try {
-  Object.assign(listState, JSON.parse(localStorage.getItem('listState') || '{}'), { query: '' });
+  const saved = JSON.parse(localStorage.getItem('listState') || '{}');
+  if (saved.view === 'map') listState.view = 'map';
+  Object.assign(listState.sorts, saved.sorts);
 } catch {}
+const rememberList = () => {
+  try { localStorage.setItem('listState', JSON.stringify({ view: listState.view, sorts: listState.sorts })); } catch {}
+};
+const homeOf = (r) => (r?.toTry ? '#/totry' : '#/');
+
+let here = null; // device position, once "Nearest" asked for it
 
 function sortRestaurants(list, sort) {
+  const away = (r) => (here && r.lat !== null && r.lon !== null ? distance(here, r) : Infinity);
   const by = {
     recent: (a, b) => (lastVisit(b) || b.created).localeCompare(lastVisit(a) || a.created),
     rating: (a, b) => displayRating(b) - displayRating(a) || a.name.localeCompare(b.name),
     name: (a, b) => a.name.localeCompare(b.name),
     visits: (a, b) => b.visits.length - a.visits.length || a.name.localeCompare(b.name),
     added: (a, b) => (b.created || '').localeCompare(a.created || ''),
+    nearest: (a, b) => away(a) - away(b) || a.name.localeCompare(b.name),
   }[sort] || (() => 0);
   return list.sort(by);
 }
 
-function renderList() {
-  setTitle('');
+const ICONS = {
+  sort: '<svg viewBox="0 0 24 24"><path d="M8 4v16M8 4 4.5 7.5M8 4l3.5 3.5M16 20V4M16 20l-3.5-3.5M16 20l3.5-3.5"/></svg>',
+  map: '<svg viewBox="0 0 24 24"><path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6 9 4Zm0 0v14m6-12v14"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
+  add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+};
+
+function renderList(tab) {
+  const title = tab === 'totry' ? 'To Try' : 'Been';
+  setTitle(tab === 'totry' ? title : '');
   const everything = repo.all();
-  const counts = { visited: everything.filter((r) => !r.toTry).length, totry: everything.filter((r) => r.toTry).length };
+  const sort = () => listState.sorts[tab];
 
   main.innerHTML = `
     <header class="bar">
-      <h1>${APP_NAME}</h1>
-      <a class="icon-btn sync-badge" href="#/settings" id="syncBadge" aria-label="Sync">${syncIcon()}</a>
-      <a class="icon-btn" href="#/settings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm7.4-2.5a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L15 3.5h-4l-.3 2.5a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"/></svg></a>
-      <a class="icon-btn primary" href="#/new" aria-label="Add restaurant"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></a>
+      <button type="button" class="icon-btn" id="sortBtn" aria-label="Sort">${ICONS.sort}</button>
+      <h1 class="center">${title}</h1>
+      <button type="button" class="icon-btn" id="viewBtn"></button>
+      <a class="icon-btn" href="#/new${tab === 'totry' ? '?totry=1' : ''}" aria-label="Add restaurant">${ICONS.add}</a>
     </header>
     <div class="list-tools">
       <input type="search" id="q" placeholder="Search restaurants, dishes, people…" value="${esc(listState.query)}" autocomplete="off">
-      <div class="row">
-        <div class="segmented" role="tablist">
-          <button role="tab" data-tab="visited" aria-selected="${listState.tab === 'visited'}">Been <span>${counts.visited}</span></button>
-          <button role="tab" data-tab="totry" aria-selected="${listState.tab === 'totry'}">To try <span>${counts.totry}</span></button>
-        </div>
-        <select id="sort" aria-label="Sort">
-          ${[['recent', 'Recent'], ['rating', 'Rating'], ['visits', 'Most visits'], ['name', 'Name'], ['added', 'Added']]
-            .map(([v, l]) => `<option value="${v}"${listState.sort === v ? ' selected' : ''}>${l}</option>`).join('')}
-        </select>
-      </div>
+      <p class="muted small sort-note" id="sortNote"></p>
     </div>
-    <ul class="cards" id="cards"></ul>`;
+    <ul class="cards" id="cards"></ul>
+    <div class="map-view" id="mapView" hidden><div class="map-box" id="mapBox"></div><div class="map-card" id="mapCard" hidden></div></div>`;
 
-  const fill = () => {
-    const shown = sortRestaurants(
-      everything.filter((r) => (listState.tab === 'totry') === r.toTry && matches(r, listState.query)),
-      listState.sort,
-    );
+  let map = null;
+  const shownRestaurants = () => sortRestaurants(
+    everything.filter((r) => (tab === 'totry') === r.toTry && matches(r, listState.query)),
+    sort(),
+  );
+
+  const card = (r) => {
+    const cover = coverImage(r);
+    const last = lastVisit(r);
+    const away = sort() === 'nearest' && here && r.lat !== null ? formatDistance(distance(here, r)) : '';
+    const sub = [away, r.cuisine, placeLine(r)].filter(Boolean).join(' · ');
+    const when = tab === 'totry'
+      ? (r.created ? `Added ${formatDate(r.created)}` : '')
+      : r.visits.length ? `${r.visits.length} visit${r.visits.length > 1 ? 's' : ''} · ${formatDate(last)}` : '';
+    return `<a class="card" href="${link(r.path)}">
+      <span class="thumb">${cover ? `<img data-file="${esc(cover)}" alt="">` : `<span class="initial">${esc(r.name.slice(0, 1).toUpperCase())}</span>`}</span>
+      <span class="card-body">
+        <strong>${esc(r.name)}</strong>
+        ${stars(displayRating(r), { size: 'small' })}
+        ${sub ? `<small>${esc(sub)}</small>` : ''}
+        ${when ? `<small class="muted">${esc(when)}</small>` : ''}
+      </span></a>`;
+  };
+
+  const fillList = () => {
+    const shown = shownRestaurants();
     const cards = $('#cards');
     if (!shown.length) {
       cards.innerHTML = `<li class="empty">${
         listState.query ? 'Nothing matches your search.'
-        : listState.tab === 'totry' ? 'Places you want to try go here.<br><a href="#/new?totry=1">Add one</a>'
-        : everything.length ? 'No visited places yet.' : `Your restaurant journal is empty.<br><a href="#/new">Add your first restaurant</a>`
+        : tab === 'totry' ? 'Places you want to try go here.<br><a href="#/new?totry=1">Add one</a>'
+        : everything.length ? 'No visited places yet.' : 'Your restaurant journal is empty.<br><a href="#/new">Add your first restaurant</a>'
       }</li>`;
       return;
     }
-    cards.innerHTML = shown.map((r) => {
-      const cover = coverImage(r);
-      const last = lastVisit(r);
-      const sub = [r.cuisine, placeLine(r)].filter(Boolean).join(' · ');
-      const visits = r.visits.length ? `${r.visits.length} visit${r.visits.length > 1 ? 's' : ''} · ${formatDate(last)}` : '';
-      return `<li><a class="card" href="${link(r.path)}">
-        <span class="thumb">${cover ? `<img data-file="${esc(cover)}" alt="">` : `<span class="initial">${esc(r.name.slice(0, 1).toUpperCase())}</span>`}</span>
-        <span class="card-body">
-          <strong>${esc(r.name)}</strong>
-          ${stars(displayRating(r), { size: 'small' })}
-          ${sub ? `<small>${esc(sub)}</small>` : ''}
-          ${visits ? `<small class="muted">${esc(visits)}</small>` : ''}
-        </span></a></li>`;
-    }).join('');
+    cards.innerHTML = shown.map((r) => `<li>${card(r)}</li>`).join('');
     hydrateImages(cards);
   };
-  fill();
 
-  const remember = () => { try { localStorage.setItem('listState', JSON.stringify(listState)); } catch {} };
+  const fillMap = () => {
+    map?.destroy();
+    $('#mapCard').hidden = true;
+    const shown = shownRestaurants();
+    const byPath = new Map(shown.map((r) => [r.path, r]));
+    map = createMap($('#mapBox'), {
+      pins: shown.map((r) => ({ id: r.path, lat: r.lat, lon: r.lon, label: r.name })),
+      here,
+      onPin: (path) => {
+        const box = $('#mapCard');
+        if (!path) { box.hidden = true; return; }
+        box.innerHTML = card(byPath.get(path));
+        box.hidden = false;
+        hydrateImages(box);
+      },
+    });
+    const missing = shown.filter((r) => r.lat === null || r.lon === null).length;
+    $('#sortNote').textContent = missing ? `${missing} without a location ${missing === 1 ? 'is' : 'are'} not on the map.` : '';
+  };
+
+  const fill = () => {
+    const mapMode = listState.view === 'map';
+    $('#cards').hidden = mapMode;
+    $('#mapView').hidden = !mapMode;
+    $('#viewBtn').innerHTML = mapMode ? ICONS.list : ICONS.map;
+    $('#viewBtn').setAttribute('aria-label', mapMode ? 'Show as list' : 'Show on map');
+    $('#sortBtn').hidden = mapMode;
+    $('#sortNote').textContent = '';
+    if (mapMode) fillMap();
+    else { map?.destroy(); map = null; fillList(); }
+  };
+
+  const useNearest = async () => {
+    $('#sortNote').textContent = 'Finding your location…';
+    const pos = await locate();
+    if (pos) here = pos;
+    $('#sortNote').textContent = pos ? '' : 'Your location is not available, so “Nearest” cannot sort.';
+    if (pos && sort() === 'nearest' && listState.view === 'list') fillList();
+  };
+
   $('#q').addEventListener('input', (e) => { listState.query = e.target.value; fill(); });
-  $('#sort').addEventListener('change', (e) => { listState.sort = e.target.value; remember(); fill(); });
-  $$('.segmented button').forEach((b) => b.addEventListener('click', () => {
-    listState.tab = b.dataset.tab;
-    remember();
-    $$('.segmented button').forEach((x) => x.setAttribute('aria-selected', x === b));
+  $('#viewBtn').addEventListener('click', () => {
+    listState.view = listState.view === 'map' ? 'list' : 'map';
+    rememberList();
     fill();
-  }));
+  });
+  $('#sortBtn').addEventListener('click', () => {
+    openSheet(`
+      <div class="choice sort-choice">
+        <h2>Sort ${title}</h2>
+        ${SORTS[tab].map(([value, label]) => `<button type="button" class="btn${value === sort() ? ' selected' : ''}" data-sort="${value}">${label}${value === sort() ? ' ✓' : ''}</button>`).join('')}
+        <button type="button" class="btn" data-close>Cancel</button>
+      </div>`, (dlg) => {
+      dlg.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-sort]');
+        if (!b) return;
+        listState.sorts[tab] = b.dataset.sort;
+        rememberList();
+        closeSheet();
+        fill();
+        if (sort() === 'nearest') useNearest();
+      });
+    });
+  });
+
+  fill();
+  if (sort() === 'nearest' && !here) useNearest();
 }
 
 // --- detail ---
@@ -203,7 +285,7 @@ function renderDetail(path) {
 
   main.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="#/" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+      <a class="icon-btn" href="${homeOf(r)}" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
       <span class="grow"></span>
       <a class="text-btn" href="#/edit/${encodeURIComponent(r.path)}">Edit</a>
     </header>
@@ -277,7 +359,7 @@ function renderDetail(path) {
     if (!confirm(`Delete “${r.name}” with all its visits, dishes and photos?`)) return;
     await repo.remove(r);
     toast('Deleted');
-    location.hash = '#/';
+    location.hash = homeOf(r);
   });
 }
 
@@ -467,7 +549,7 @@ function renderEdit(path, params) {
   if (path && !existing) return notFound();
   const r = existing ? { ...existing } : newRestaurant({ toTry: params.get('totry') === '1' });
   setTitle(existing ? `Edit ${r.name}` : 'New restaurant');
-  const back = existing ? link(existing.path) : '#/';
+  const back = existing ? link(existing.path) : r.toTry ? '#/totry' : '#/';
 
   main.innerHTML = `
     <header class="bar">
@@ -726,8 +808,7 @@ async function renderSettings() {
 
   main.innerHTML = `
     <header class="bar">
-      <a class="icon-btn" href="#/" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
-      <h1 class="center">Settings</h1><span class="icon-btn"></span>
+      <span class="icon-btn"></span><h1 class="center">Settings</h1><span class="icon-btn"></span>
     </header>
     <section class="block">
       <h2>Your data</h2>
@@ -747,8 +828,8 @@ async function renderSettings() {
       </div>
     </section>
     <section class="block">
-      <h2>Place search</h2>
-      <p class="muted small">When you add a restaurant, your rough location (if you allow it) goes to OpenStreetMap’s Nominatim service to list food places nearby, and so does any text you search for.</p>
+      <h2>Place search and maps</h2>
+      <p class="muted small">When you add a restaurant, your rough location (if you allow it) goes to OpenStreetMap’s Nominatim service to list food places nearby, and so does any text you search for. The map view loads its map images from OpenStreetMap, which shows them the area you look at. Sorting by “Nearest” uses your location on this device only.</p>
     </section>
     <section class="block">
       <h2>Start over</h2>
@@ -808,27 +889,11 @@ const sync = createSync({
   base: apiBase,
   onRemoteChange: () => refreshAfterRemoteChange(),
   onState: () => {
-    const badge = $('#syncBadge');
-    if (badge) badge.outerHTML = `<a class="icon-btn sync-badge" href="#/settings" id="syncBadge" aria-label="Sync">${syncIcon()}</a>`;
+    updateTabs();
     // Never redraw the sign-in form while someone may be typing in it.
     if ($('#syncSection') && !$('#signIn')) renderSyncSection();
   },
 });
-
-function syncIcon() {
-  const { status, email, pending } = sync.state;
-  const kind = !email ? 'signed-out' : status === 'syncing' ? 'syncing' : status === 'error' ? 'error' : status === 'offline' || pending ? 'pending' : 'ok';
-  const title = {
-    'signed-out': 'Sync is off',
-    syncing: 'Syncing…',
-    error: 'Sync problem',
-    pending: `${pending || 'Some'} change${pending === 1 ? '' : 's'} waiting to sync`,
-    ok: 'Synced',
-  }[kind];
-  return `<svg viewBox="0 0 24 24" class="cloud ${kind}"><title>${esc(title)}</title><path d="M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.4 9.1 4.5 4.5 0 0 0 7 18Z"/>${
-    kind === 'ok' ? '<path d="M9.5 13.5l2 2 3.5-4"/>' : kind === 'signed-out' ? '<path d="M4 4l16 16"/>' : kind === 'error' ? '<path d="M12 10v3M12 15.5v.01"/>' : kind === 'syncing' ? '<path d="M9 13h6M12 10v6"/>' : '<circle cx="12" cy="13.5" r="1.3" fill="currentColor"/>'
-  }</svg>`;
-}
 
 function timeAgo(iso) {
   if (!iso) return 'never';
@@ -922,7 +987,8 @@ function renderSyncSection() {
 let staleView = false;
 async function refreshAfterRemoteChange() {
   await repo.loadAll();
-  const editing = sheet.open || /^#\/(new|edit\/|settings)/.test(location.hash);
+  const onMap = listState.view === 'map' && /^#\/?(totry)?$/.test(location.hash || '#/');
+  const editing = sheet.open || onMap || /^#\/(new|edit\/|settings)/.test(location.hash);
   if (editing) { staleView = true; return; }
   const y = window.scrollY;
   render();
@@ -953,7 +1019,24 @@ function route() {
   render();
 }
 
+// The bottom bar shows on the three top-level screens only.
+function updateTabs() {
+  const screen = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
+  const current = { '': 'visited', totry: 'totry', settings: 'settings' }[screen];
+  const tabs = document.getElementById('tabs');
+  tabs.hidden = !current;
+  document.body.classList.toggle('with-tabs', !!current);
+  for (const a of tabs.querySelectorAll('[data-tab]')) {
+    if (a.dataset.tab === current) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
+  const { status, email, pending } = sync.state;
+  const problem = email && (status === 'error' || pending);
+  tabs.querySelector('[data-tab="settings"]').classList.toggle('alert', !!problem);
+}
+
 function render() {
+  updateTabs();
   const [pathPart, query = ''] = location.hash.replace(/^#/, '').split('?');
   const params = new URLSearchParams(query);
   const parts = pathPart.split('/').filter(Boolean);
@@ -961,7 +1044,8 @@ function render() {
   if (parts[0] === 'edit' && parts[1]) return renderEdit(decodeURIComponent(parts[1]), params);
   if (parts[0] === 'new') return renderEdit(null, params);
   if (parts[0] === 'settings') return renderSettings();
-  return renderList();
+  if (parts[0] === 'totry') return renderList('totry');
+  return renderList('visited');
 }
 
 // --- app updates ---
@@ -975,7 +1059,7 @@ const UPDATED_FLAG = 'bite-stamped-updated';
 
 function safeToReload() {
   const screen = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
-  return (screen === '' || screen === 'r') && !sheet.open;
+  return (screen === '' || screen === 'totry' || screen === 'r') && !sheet.open;
 }
 
 function reloadIfUpdated() {
