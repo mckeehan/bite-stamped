@@ -197,9 +197,10 @@ Then `sudo systemctl enable --now bite-stamped` and `journalctl -u bite-stamped 
 Then `launchctl load ~/Library/LaunchAgents/com.example.bite-stamped.plist`. Use the
 path of your `node` (`which node`).
 
-To update: `git pull`, then restart the service. Bump `VERSION` in
-`app/sw.js` with every change to the app (and add new files to its list) so
-installed copies update. They pick up the new version the next time they are
+To update: `git pull`, then restart the service. With every change to the
+app, raise the version and date in `app/js/version.js` (shown at the bottom
+of Settings), and add new files to the list in `app/sw.js`, so installed
+copies update. They pick up the new version the next time they are
 opened or brought to the front, and reload into it as soon as nothing is being
 edited.
 

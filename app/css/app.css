@@ -383,3 +383,5 @@ dialog[open] { animation: up 0.2s ease-out; }
   max-width: calc(100% - 32px);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.app-version { text-align: center; margin: 24px 0 8px; }

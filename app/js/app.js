@@ -711,6 +711,12 @@ function formatBytes(n) {
   return `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
 }
 
+function releaseLine() {
+  const release = self.BITE_STAMPED_RELEASE;
+  if (!release) return APP_NAME;
+  return `${APP_NAME} version ${release.version} · released ${formatDate(release.date, 'long')}`;
+}
+
 async function renderSettings() {
   setTitle('Settings');
   const all = repo.all();
@@ -748,7 +754,8 @@ async function renderSettings() {
       <h2>Start over</h2>
       <p class="muted small">Removes all restaurants and photos from this device only. When you are signed in, they download again from the server; nothing is deleted there.</p>
       <button class="text-btn danger" id="wipe">Remove all data from this device</button>
-    </section>`;
+    </section>
+    <p class="muted small app-version">${esc(releaseLine())}</p>`;
 
   renderSyncSection();
 

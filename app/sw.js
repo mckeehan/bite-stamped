@@ -1,10 +1,12 @@
 // Keeps the app itself available offline. Data never passes through here:
 // it lives in IndexedDB, and the sync API always goes to the network.
-// App files are served from the cache and refreshed in the background. A
-// changed sw.js (bump VERSION on every release) installs a fresh copy of every
-// file and takes over right away; the page then reloads into it (app.js).
+// App files are served from the cache and refreshed in the background. A new
+// release (js/version.js, which the browser checks along with this file)
+// installs a fresh copy of every file and takes over right away; the page then
+// reloads into it (app.js).
 
-const VERSION = 'v9';
+importScripts('js/version.js');
+const VERSION = `v${self.BITE_STAMPED_RELEASE.version}`;
 const CACHE = `bite-stamped-${VERSION}`;
 // The sync API sits next to this file (e.g. /bites/api/ when served below /bites).
 const API_PATH = new URL('api/', self.registration.scope).pathname;
@@ -23,6 +25,7 @@ const FILES = [
   'js/places.js',
   'js/md.js',
   'js/sync.js',
+  'js/version.js',
   'icons/icon.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',
