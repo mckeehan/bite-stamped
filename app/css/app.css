@@ -305,6 +305,15 @@ label.check { display: flex; align-items: center; gap: 10px; color: var(--text);
 .place-text small { color: var(--muted); font-size: 0.875rem; }
 .place-dist { font-size: 0.875rem; white-space: nowrap; }
 .place-list svg { width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 2; }
+.place-list li.in-journal { background: var(--accent-soft); border-radius: 10px; border-top-color: transparent; }
+.place-list li.in-journal + li { border-top-color: transparent; }
+.place-list li.in-journal button { padding-left: 10px; padding-right: 10px; }
+.journal-note { color: var(--accent); font-size: 0.8125rem; font-weight: 600; }
+.choice { display: grid; gap: 10px; padding: 8px 4px 4px; text-align: center; }
+.choice h2 { font-size: 1.05rem; margin: 0; }
+.choice p { margin: 0 0 8px; }
+.choice .btn { width: 100%; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .custom-place { justify-self: center; margin: 16px 0; }
 .back-to-search { justify-self: start; padding-left: 0; }
 .results { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

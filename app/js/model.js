@@ -238,3 +238,42 @@ export function mergeRestaurants(local, remote) {
 export function mergeMarkdown(path, localText, remoteText) {
   return toMarkdown(mergeRestaurants(fromMarkdown(path, localText), fromMarkdown(path, remoteText)));
 }
+
+// Meters between two {lat, lon}.
+export function distance(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371e3 * Math.asin(Math.sqrt(h));
+}
+
+// Restaurant names compared loosely: case, accents, apostrophes, "&"/"and"
+// and a leading "The" don't matter.
+export function nameKey(name) {
+  return str(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/['’`]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^the /, '');
+}
+
+const sameName = (a, b) => a === b || a.startsWith(`${b} `) || b.startsWith(`${a} `);
+const streetKey = (address) => nameKey(str(address).split(',')[0]);
+
+// The journal restaurant that is this place (from a place search), if any:
+// a similar name and within 250 m, or, without coordinates, the same name
+// and street address. Chains are told apart by where they are.
+export function findInJournal(place, restaurants) {
+  const name = nameKey(place.name);
+  if (!name) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const r of restaurants) {
+    if (!sameName(name, nameKey(r.name))) continue;
+    if (r.lat !== null && r.lon !== null && Number.isFinite(place.lat)) {
+      const d = distance(place, r);
+      if (d <= 250 && d < bestDistance) { best = r; bestDistance = d; }
+    } else if (bestDistance === Infinity && r.address && streetKey(r.address) === streetKey(place.street ?? place.address)) {
+      best = r;
+    }
+  }
+  return best;
+}

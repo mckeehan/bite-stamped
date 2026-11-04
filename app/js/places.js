@@ -3,6 +3,8 @@
 // Usage policy (at most one request per second, no search-as-you-type):
 // https://operations.osmfoundation.org/policies/nominatim/
 
+import { distance } from './model.js';
+
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
 
 // Requests go out one at a time, at least 1.1 s apart.
@@ -55,15 +57,6 @@ export async function nearbyFood(near, onUpdate = () => {}) {
   if (failures === FOOD.length) throw new Error('Nearby search failed');
   if (!failures) nearbyCache = { key, time: Date.now(), places };
   return places;
-}
-
-// Meters between two {lat, lon}.
-export function distance(a, b) {
-  const rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad;
-  const dLon = (b.lon - a.lon) * rad;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6371e3 * Math.asin(Math.sqrt(h));
 }
 
 const MILE_REGIONS = new Set(['US', 'GB', 'LR', 'MM']);

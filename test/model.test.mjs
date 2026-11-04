@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, uniquePath, slugify, mediaDir, displayRating, matches, lastVisit,
+  fromMarkdown, toMarkdown, newRestaurant, uniquePath, slugify, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey,
 } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
@@ -72,4 +72,21 @@ test('search looks at dishes, people and photo titles', () => {
   assert.ok(matches(r, 'ramen ben'));
   assert.ok(matches(r, 'birthday'));
   assert.ok(!matches(r, 'sushi'));
+});
+
+test('findInJournal matches by loose name and nearby location', () => {
+  const journal = [
+    { name: 'Taco Bell', lat: 35.9606, lon: -83.9207, address: '145 Stadium Dr' },
+    { name: 'Taco Bell', lat: 35.99, lon: -83.95, address: '3310 Parkway' },
+    { name: "Calhoun's", lat: 35.9555, lon: -83.9262, address: '400 Neyland Dr' },
+    { name: 'The Lunchbox', lat: null, lon: null, address: 'Market St SW, Knoxville' },
+  ];
+  // 100 m away from the first Taco Bell, far from the second.
+  assert.equal(findInJournal({ name: 'Taco Bell', lat: 35.9615, lon: -83.9207 }, journal), journal[0]);
+  assert.equal(findInJournal({ name: 'Taco Bell', lat: 36.2, lon: -83.9 }, journal), null);
+  assert.equal(findInJournal({ name: 'Calhoun’s on the River', lat: 35.9556, lon: -83.9263 }, journal), journal[2]);
+  assert.equal(findInJournal({ name: 'Calhoun County', lat: 35.9556, lon: -83.9263 }, journal), null);
+  assert.equal(findInJournal({ name: 'Lunchbox', lat: 35.96, lon: -83.92, street: 'Market St SW' }, journal), journal[3]);
+  assert.equal(findInJournal({ name: 'Lunchbox', lat: 35.96, lon: -83.92, street: 'Gay St' }, journal), null);
+  assert.equal(nameKey('The Pig & Whistle’s'), 'pig and whistles');
 });

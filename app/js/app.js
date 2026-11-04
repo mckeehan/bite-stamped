@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today,
+  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, mapsURL, today, findInJournal,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyFood, formatDistance } from './places.js';
@@ -267,6 +267,7 @@ function renderDetail(path) {
     renderDetail(r.path);
   });
   $('#addVisit').addEventListener('click', () => editVisit(r, -1));
+  if (pendingVisit === path) { pendingVisit = null; editVisit(r, -1); }
   $$('[data-visit]').forEach((b) => b.addEventListener('click', () => editVisit(r, Number(b.dataset.visit))));
   $('#addDish').addEventListener('click', () => editDish(r, -1));
   $$('[data-dish]').forEach((b) => b.addEventListener('click', () => editDish(r, Number(b.dataset.dish))));
@@ -536,7 +537,19 @@ function renderEdit(path, params) {
 
 // New restaurant: first pick a place (food places nearby, filtered as you type;
 // press Search to look further), or open the empty form for a custom one.
+// Set when "Add visit" on the new-restaurant screen opens a restaurant.
+let pendingVisit = null;
+
+// How a journal restaurant shows up in place results.
+function journalNote(r) {
+  const last = lastVisit(r);
+  if (last) return `Visited ${formatDate(last)}`;
+  if (r.toTry) return 'On your to-try list';
+  return 'In your journal';
+}
+
 function setUpPlacePicker(form) {
+  const journal = repo.all();
   const picker = $('#placePicker');
   const input = $('#placeQuery');
   const list = $('#placeResults');
@@ -564,10 +577,11 @@ function setUpPlacePicker(form) {
     if (found && foundFor !== q) found = null;
     const fq = fold(q);
     const matching = q ? nearby.filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq)) : nearby;
-    shown = found ? found : matching.slice(0, 60);
+    shown = (found ? found : matching.slice(0, 60)).map((p) => ({ ...p, mine: findInJournal(p, journal) }));
     list.innerHTML = shown.map((p, i) => `
-      <li><button type="button" data-place="${i}">
-        <span class="place-text"><strong>${esc(p.name)}</strong><small>${esc(p.address || p.display || p.kind)}</small></span>
+      <li${p.mine ? ' class="in-journal"' : ''}><button type="button" data-place="${i}">
+        <span class="place-text"><strong>${esc(p.name)}</strong><small>${esc(p.address || p.display || p.kind)}</small>${
+          p.mine ? `<span class="journal-note">✓ ${esc(journalNote(p.mine))}</span>` : ''}</span>
         <span class="place-dist muted">${p.distance === undefined ? '' : esc(formatDistance(p.distance))}</span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </button></li>`).join('');
@@ -630,12 +644,45 @@ function setUpPlacePicker(form) {
     const b = e.target.closest('[data-place]');
     if (!b) return;
     const p = shown[Number(b.dataset.place)];
+    if (p.mine) askAboutDuplicate(p);
+    else useNewPlace(p);
+  });
+
+  const useNewPlace = (p) => {
     for (const key of ['name', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) {
       const value = key === 'address' && p.street !== undefined ? p.street : p[key];
       form[key].value = value === undefined || Number.isNaN(value) ? '' : value;
     }
     showForm();
-  });
+  };
+
+  // A place already in the journal: add a visit to it, or make a new restaurant anyway.
+  const askAboutDuplicate = (p) => {
+    const r = p.mine;
+    const last = lastVisit(r);
+    const message = last
+      ? `You last visited ${esc(r.name)} on ${esc(formatDate(last))}.`
+      : r.toTry
+        ? `${esc(r.name)} is already on your to-try list.`
+        : `You added ${esc(r.name)} on ${esc(formatDate(r.created))}.`;
+    openSheet(`
+      <div class="choice">
+        <h2>Already in your journal</h2>
+        <p>${message}</p>
+        <button type="button" class="btn primary" id="dupVisit">Add visit to ${esc(r.name)}</button>
+        <button type="button" class="btn" id="dupNew">Create new restaurant</button>
+        <button type="button" class="btn" data-close>Cancel</button>
+      </div>`, (dlg) => {
+      $('#dupVisit', dlg).addEventListener('click', () => {
+        pendingVisit = r.path;
+        location.replace(link(r.path));
+      });
+      $('#dupNew', dlg).addEventListener('click', () => {
+        closeSheet();
+        useNewPlace(p);
+      });
+    });
+  };
 
   $('#customPlace').addEventListener('click', () => {
     for (const key of ['cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) form[key].value = '';

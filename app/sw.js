@@ -3,7 +3,7 @@
 // App files are served from the cache and refreshed in the background, so a
 // new version shows up on the next launch. Bump VERSION on every release.
 
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = `bite-stamped-${VERSION}`;
 // The sync API sits next to this file (e.g. /bites/api/ when served below /bites).
 const API_PATH = new URL('api/', self.registration.scope).pathname;
