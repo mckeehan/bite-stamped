@@ -15,6 +15,33 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.4.1] - 2026-11-05
+
+### Fixed
+
+- Check in only listed places from your journal where OpenStreetMap has
+  nothing within about 600 m (it only looked that far, so the nearest places
+  were all your own). Now it looks about 3 km around when there are fewer
+  than three places that close, lists the nearest ten, and says so.
+
+## [2.4.0] - 2026-11-05
+
+### Added
+
+- Check in: pull the list down (or tap the refresh button at the top) to look
+  again, with a fresh location, for when you have moved or the list is stale.
+
+## [2.3.0] - 2026-11-05
+
+### Added
+
+- **Check in** from the Timeline: its + lists the places right around you
+  (within about 600 m, closest first; places in your journal and places
+  OpenStreetMap knows). Tapping one records a visit for now, at once, and
+  opens it to add a rating, people and notes; a new place is added to the
+  journal, a place to try counts as visited. "Not here? Search for a place"
+  leads to the usual search. The + on Visited and To Try still adds a place.
+
 ## [2.2.1] - 2026-11-05
 
 ### Fixed

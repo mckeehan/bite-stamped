@@ -11,7 +11,8 @@ build step, no dependencies at all.
 
 - Places of any type (restaurant, bar, museum, park…) with rating, "to try"
   flag, cuisine or category, address, website, phone, tags and Markdown notes
-- Visits with date, rating, people and notes
+- Visits with date, rating, people and notes; **check in** from the Timeline
+  with one tap on a place right around you
 - Dishes with rating, price, notes and an image (for places to eat and drink)
 - Photos with a title and date; any photo can be the cover
 - A "Timeline" of every visit by day, plus "Visited" and "To Try" lists, sorted by name, last visit, rating, visits, date

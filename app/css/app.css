@@ -304,6 +304,18 @@ label.check { display: flex; align-items: center; gap: 10px; color: var(--text);
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .custom-place { justify-self: center; margin: 16px 0; }
 .more-places { justify-self: center; margin-top: 16px; }
+.checkin { min-height: calc(100dvh - 120px); }
+/* The pull is the app's own here: no browser bounce or page reload. */
+html:has(.checkin) { overscroll-behavior-y: contain; }
+.pull-hint {
+  height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.pull-hint.settle { transition: height 0.2s ease; }
 .place-credit { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .fsq-credit { display: inline-block; line-height: 0; }
 .fsq-credit img { height: 28px; width: auto; }

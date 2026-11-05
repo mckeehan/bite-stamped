@@ -190,6 +190,7 @@ const ICONS = {
   list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
   add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   directions: '<svg viewBox="0 0 24 24"><path d="M3.5 11 20.5 3.5 13 20.5l-2-7.5-7.5-2Z"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
 };
 
 // Directions and sharing for one restaurant: map apps, the system share sheet,
@@ -261,7 +262,9 @@ function renderList(tab) {
       <button type="button" class="icon-btn" id="sortBtn" aria-label="Sort">${ICONS.sort}</button>
       <h1 class="center">${title}</h1>
       <button type="button" class="icon-btn" id="viewBtn"></button>
-      <a class="icon-btn" href="#/new${tab === 'totry' ? '?totry=1' : ''}" aria-label="Add place">${ICONS.add}</a>
+      ${tab === 'timeline'
+        ? `<a class="icon-btn" href="#/checkin" aria-label="Check in">${ICONS.add}</a>`
+        : `<a class="icon-btn" href="#/new${tab === 'totry' ? '?totry=1' : ''}" aria-label="Add place">${ICONS.add}</a>`}
     </header>
     <div class="list-tools">
       <input type="search" id="q" placeholder="Search places, dishes, people…" value="${esc(listState.query)}" autocomplete="off">
@@ -503,7 +506,7 @@ function renderDetail(path) {
   });
   $('#addVisit').addEventListener('click', () => editVisit(r, -1));
   for (const b of $$('[data-directions]', main)) b.addEventListener('click', () => openDirections(r));
-  if (pendingVisit === path) { pendingVisit = null; editVisit(r, -1); }
+  if (pendingVisit?.path === path) { const { index = -1 } = pendingVisit; pendingVisit = null; editVisit(r, index); }
   $$('[data-visit]').forEach((b) => b.addEventListener('click', () => editVisit(r, Number(b.dataset.visit))));
   $('#addDish')?.addEventListener('click', () => editDish(r, -1));
   $$('[data-dish]').forEach((b) => b.addEventListener('click', () => editDish(r, Number(b.dataset.dish))));
@@ -801,7 +804,171 @@ function renderEdit(path, params) {
 // New restaurant: first pick a place (food places nearby, filtered as you type;
 // press Search to look further), or open the empty form for a custom one.
 // Set when "Add visit" on the new-restaurant screen opens a restaurant.
-let pendingVisit = null;
+let pendingVisit = null; // { path, index }: open that visit (-1: a new one) on the place's page
+
+// --- check in (the + on the Timeline) ---
+// The places right around you, closest first: the ones in your journal and
+// the ones OpenStreetMap knows. Tapping one records a visit for now and opens
+// it to add a rating, people and notes. "Not here?" leads to the full search.
+
+const CHECKIN_RADIUS = 600; // meters: "here" is a short walk at most
+
+async function checkIn(place) {
+  const visit = { date: now(), rating: 0, people: [], notes: '' };
+  let r = place.mine ? { ...place.mine } : null;
+  if (!r) {
+    r = newRestaurant({
+      name: place.name, type: place.type || '', cuisine: place.cuisine || '',
+      address: place.street ?? place.address ?? '', city: place.city || '', state: place.state || '',
+      country: place.country || '', countryCode: place.countryCode || '', website: place.website || '', phone: place.phone || '',
+      lat: Number.isFinite(place.lat) ? place.lat : null, lon: Number.isFinite(place.lon) ? place.lon : null,
+    });
+  }
+  r.visits = [visit, ...r.visits];
+  r.toTry = false; // been there now
+  const saved = await repo.save(r);
+  toast(`Checked in at ${saved.name}`);
+  pendingVisit = { path: saved.path, index: 0 };
+  location.replace(link(saved.path));
+}
+
+function renderCheckIn() {
+  setTitle('Check in');
+  main.innerHTML = `
+    <header class="bar">
+      <a class="text-btn" href="#/">Cancel</a>
+      <h1 class="center">Check in</h1>
+      <button type="button" class="icon-btn" id="refreshCheckin" aria-label="Refresh: find places around you again">${ICONS.refresh}</button>
+    </header>
+    <section class="place-picker checkin" id="checkinRoot">
+      <div class="pull-hint" id="pullHint" aria-hidden="true"></div>
+      <p class="muted small picker-status" id="checkinStatus" role="status">Finding places around you…</p>
+      <ul class="place-list" id="checkinList"></ul>
+      <p class="muted small place-credit" id="checkinCredit"></p>
+      <a class="text-btn custom-place" href="#/new">Not here? Search for a place</a>
+    </section>`;
+  const list = $('#checkinList');
+  const status = $('#checkinStatus');
+  const journal = repo.all();
+  let shown = [];
+
+  const draw = (here, nearby) => {
+    const covered = new Set();
+    const places = nearby.map((p) => {
+      const mine = findInJournal(p, journal);
+      if (mine) covered.add(mine);
+      return { ...p, mine };
+    });
+    for (const r of journal) {
+      if (covered.has(r) || r.lat === null || r.lon === null) continue;
+      places.push({ id: `journal:${r.path}`, name: r.name, lat: r.lat, lon: r.lon, address: [r.address, r.city].filter(Boolean).join(', '), mine: r });
+    }
+    const close = places.map((p) => ({ ...p, distance: distance(here, p) })).sort((a, b) => a.distance - b.distance);
+    // Very close first; if little is that close, the nearest ten anyway.
+    shown = close.filter((p) => p.distance <= CHECKIN_RADIUS);
+    if (shown.length < 3) shown = close.slice(0, 10);
+    shown = shown.slice(0, 40);
+    list.innerHTML = shown.map((p, i) => `
+      <li${p.mine ? ' class="in-journal"' : ''}><button type="button" data-i="${i}">
+        <span class="place-text"><strong>${esc(p.mine?.name || p.name)}</strong><small>${esc(p.address || p.kind || '')}</small>${
+          p.mine ? `<span class="journal-note">✓ ${esc(journalNote(p.mine))}</span>` : ''}</span>
+        <span class="place-dist muted">${esc(formatDistance(p.distance))}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+      </button></li>`).join('');
+    $('#checkinCredit').innerHTML = shown.some((p) => !p.id.startsWith('journal:'))
+      ? `Places © <a href="${OSM_COPYRIGHT}" target="_blank" rel="noopener">OpenStreetMap contributors</a>` : '';
+  };
+
+  list.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-i]');
+    if (!b || b.disabled) return;
+    b.disabled = true;
+    await checkIn(shown[Number(b.dataset.i)]);
+  });
+
+  // Finds the location (a fresh one when refreshing) and the places around it.
+  // A newer load replaces an older one still running.
+  let loads = 0;
+  const load = async ({ fresh = false } = {}) => {
+    const run = ++loads;
+    const current = () => run === loads && $('#checkinList');
+    status.textContent = fresh ? 'Finding where you are…' : 'Finding places around you…';
+    const here = await locate({ fresh });
+    if (!current()) return; // left the screen, or a newer load
+    if (!here) {
+      status.innerHTML = locate.denied
+        ? 'Allow location access to check in at the places around you, or <a href="#/new">search for a place</a>.'
+        : 'Your location is not available. <a href="#/new">Search for a place</a> instead.';
+      return;
+    }
+    draw(here, []);
+    status.textContent = navigator.onLine ? 'Finding places around you…' : 'You are offline: only places in your journal.';
+    if (!navigator.onLine) return;
+    try {
+      // First the small area right around you (so the nearest places aren't
+      // crowded out where there are many); where OpenStreetMap has little
+      // there, about 3 km around (the same search as when adding a place).
+      let nearby = await nearbyPlaces(here, (sofar) => { if (current()) draw(here, sofar); }, { size: 0.006 });
+      if (!current()) return;
+      const close = nearby.filter((p) => distance(here, p) <= CHECKIN_RADIUS).length;
+      if (close < 3) {
+        status.textContent = `${close ? 'Little' : 'Nothing'} on OpenStreetMap within about ${formatDistance(CHECKIN_RADIUS)}; looking a little further…`;
+        const wider = await nearbyPlaces(here, (sofar) => { if (current()) draw(here, [...nearby, ...sofar]); });
+        if (!current()) return;
+        nearby = [...nearby, ...wider.filter((w) => !nearby.some((n) => n.id === w.id))];
+      }
+      draw(here, nearby);
+      status.textContent = !shown.length ? 'Nothing found around you. Search for a place instead.'
+        : shown[0].distance > CHECKIN_RADIUS ? `Nothing within about ${formatDistance(CHECKIN_RADIUS)}; the nearest places:` : '';
+    } catch {
+      if (current()) status.textContent = 'Places around you are not available right now; showing the ones in your journal.';
+    }
+  };
+
+  // Pull down (at the top of the screen) or the refresh button: look again.
+  const hint = $('#pullHint');
+  const PULL = 64; // px to pull before letting go refreshes
+  let refreshing = false;
+  const showPull = (px, text) => {
+    hint.style.height = `${px}px`;
+    hint.textContent = text ?? (px >= PULL ? 'Release to refresh' : px > 8 ? 'Pull to refresh' : '');
+  };
+  const refresh = async () => {
+    if (refreshing) return;
+    refreshing = true;
+    hint.classList.add('settle');
+    showPull(40, 'Refreshing…');
+    $('#refreshCheckin').disabled = true;
+    try { await load({ fresh: true }); } finally {
+      refreshing = false;
+      if ($('#checkinList')) { showPull(0, ''); $('#refreshCheckin').disabled = false; }
+    }
+  };
+  $('#refreshCheckin').addEventListener('click', refresh);
+  const root = $('#checkinRoot');
+  let startY = null;
+  let pulled = 0;
+  root.addEventListener('touchstart', (e) => {
+    startY = window.scrollY <= 0 && !refreshing && e.touches.length === 1 ? e.touches[0].clientY : null;
+    pulled = 0;
+    hint.classList.remove('settle');
+  }, { passive: true });
+  root.addEventListener('touchmove', (e) => {
+    if (startY === null) return;
+    pulled = Math.max(0, Math.min(96, (e.touches[0].clientY - startY) * 0.5));
+    showPull(pulled);
+  }, { passive: true });
+  const letGo = (e) => {
+    if (startY === null) return;
+    startY = null;
+    if (pulled >= PULL && e.type === 'touchend') refresh(); // not when the system cancels the touch
+    else { hint.classList.add('settle'); showPull(0, ''); }
+  };
+  root.addEventListener('touchend', letGo);
+  root.addEventListener('touchcancel', letGo);
+
+  load();
+}
 
 // How a journal restaurant shows up in place results.
 function journalNote(r) {
@@ -1125,7 +1292,7 @@ function setUpPlacePicker(form, onFill = () => {}) {
         <button type="button" class="btn" data-close>Cancel</button>
       </div>`, (dlg) => {
       $('#dupVisit', dlg).addEventListener('click', () => {
-        pendingVisit = r.path;
+        pendingVisit = { path: r.path };
         location.replace(link(r.path));
       });
       $('#dupNew', dlg).addEventListener('click', () => {
@@ -1425,7 +1592,7 @@ let staleView = false;
 async function refreshAfterRemoteChange() {
   await repo.loadAll();
   const onMap = listState.view === 'map' && /^#\/?(totry|visited)?$/.test(location.hash || '#/');
-  const editing = sheet.open || onMap || /^#\/(new|edit\/|settings)/.test(location.hash);
+  const editing = sheet.open || onMap || /^#\/(new|edit\/|settings|checkin)/.test(location.hash);
   if (editing) { staleView = true; return; }
   const y = window.scrollY;
   render();
@@ -1480,6 +1647,7 @@ function render() {
   if (parts[0] === 'r' && parts[1]) return renderDetail(decodeURIComponent(parts[1]));
   if (parts[0] === 'edit' && parts[1]) return renderEdit(decodeURIComponent(parts[1]), params);
   if (parts[0] === 'new') return renderEdit(null, params);
+  if (parts[0] === 'checkin') return renderCheckIn();
   if (parts[0] === 'settings') return renderSettings();
   if (parts[0] === 'totry') return renderList('totry');
   if (parts[0] === 'visited') return renderList('visited');

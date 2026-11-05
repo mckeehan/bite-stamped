@@ -57,14 +57,16 @@ function addressParts(a) {
 const FOOD = ['amenity=restaurant', 'amenity=fast_food', 'amenity=cafe', 'shop=bakery', 'amenity=pub', 'amenity=bar', 'amenity=ice_cream'];
 const NEARBY = [...FOOD, 'craft=brewery', 'tourism=museum', 'tourism=attraction'];
 
-let nearbyCache = null;
+const nearbyCache = new Map(); // "lat,lon/size" → { time, places }, for 10 minutes
 
-// Named places of those kinds within about 3 km of `near`, closest first.
+// Named places of those kinds within about 3 km of `near` (or `size` degrees
+// either way: 0.005 is about 500 m), closest first.
 // `onUpdate` gets the list so far after each kind of place.
-export async function nearbyPlaces(near, onUpdate = () => {}) {
-  const key = `${near.lat.toFixed(3)},${near.lon.toFixed(3)}`;
-  if (nearbyCache?.key === key && Date.now() - nearbyCache.time < 10 * 60_000) return nearbyCache.places;
-  const d = 0.03;
+export async function nearbyPlaces(near, onUpdate = () => {}, { size = 0.03 } = {}) {
+  const key = `${near.lat.toFixed(3)},${near.lon.toFixed(3)}/${size}`;
+  const cached = nearbyCache.get(key);
+  if (cached && Date.now() - cached.time < 10 * 60_000) return cached.places;
+  const d = size;
   const viewbox = [near.lon - d, near.lat + d, near.lon + d, near.lat - d].join(',');
   const byId = new Map();
   let places = [];
@@ -81,7 +83,10 @@ export async function nearbyPlaces(near, onUpdate = () => {}) {
     onUpdate(places);
   }
   if (failures === NEARBY.length) throw new Error('Nearby search failed');
-  if (!failures) nearbyCache = { key, time: Date.now(), places };
+  if (!failures) {
+    if (nearbyCache.size >= 6) nearbyCache.delete(nearbyCache.keys().next().value);
+    nearbyCache.set(key, { time: Date.now(), places });
+  }
   return places;
 }
 
@@ -100,13 +105,14 @@ export function formatDistance(m) {
 let lastPosition = null;
 
 // Resolves to {lat, lon}, or null with locate.denied set when the user said no.
-export function locate() {
+// A position up to 10 minutes old will do, unless `fresh` (e.g. to refresh).
+export function locate({ fresh = false } = {}) {
   if (!('geolocation' in navigator)) return Promise.resolve(null);
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (p) => { locate.denied = false; resolve((lastPosition = { lat: p.coords.latitude, lon: p.coords.longitude })); },
       (err) => { locate.denied = err.code === err.PERMISSION_DENIED; resolve(lastPosition); },
-      { maximumAge: 10 * 60_000, timeout: 8000 },
+      { maximumAge: fresh ? 0 : 10 * 60_000, timeout: 8000, enableHighAccuracy: fresh },
     );
   });
 }
