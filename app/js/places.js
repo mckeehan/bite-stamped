@@ -3,7 +3,7 @@
 // Usage policy (at most one request per second, no search-as-you-type):
 // https://operations.osmfoundation.org/policies/nominatim/
 
-import { distance } from './model.js';
+import { distance, nameMatches } from './model.js';
 
 const SERVER = 'https://nominatim.openstreetmap.org';
 
@@ -135,16 +135,24 @@ export async function searchPlaces(query, near = lastPosition, { anywhere = fals
 
 // Fallback when OpenStreetMap has nothing: Foursquare, through this app's own
 // server, which holds the API key. `apiBase` is where the app's API lives.
+// Text after a comma is the town to search in.
 const fallbackCache = new Map();
 export async function fallbackSearch(query, apiBase, near = lastPosition, { anywhere = false } = {}) {
   const key = `${query.toLowerCase()}@${near ? `${near.lat.toFixed(2)},${near.lon.toFixed(2)}` : ''}${anywhere ? '*' : ''}`;
   if (fallbackCache.has(key)) return fallbackCache.get(key);
-  const params = new URLSearchParams({ q: query });
+  // "The Dillard House, Dillard GA": the name, and the town to search in.
+  const comma = query.indexOf(',');
+  const town = comma > 0 ? query.slice(comma + 1).trim() : '';
+  const params = new URLSearchParams({ q: town ? query.slice(0, comma).trim() : query });
+  if (town) params.set('near', town);
   if (near) { params.set('lat', near.lat.toFixed(3)); params.set('lon', near.lon.toFixed(3)); }
   if (anywhere) params.set('anywhere', '1');
   const res = await fetch(`${apiBase}/api/places/search?${params}`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error(`Search failed (${res.status})`);
+  // Foursquare also returns places that only share a word or two, or none,
+  // with what was typed; those are left out.
   const places = (await res.json()).places
+    .filter((p) => nameMatches(params.get('q'), p.name))
     .map((p) => ({ ...p, distance: near ? distance(near, p) : undefined }))
     .sort((a, b) => b.food - a.food || (a.distance ?? 0) - (b.distance ?? 0));
   fallbackCache.set(key, places);

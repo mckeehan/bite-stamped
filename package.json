@@ -1,6 +1,6 @@
 {
   "name": "bite-stamped",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Offline-first restaurant journal for the phone, stored as Markdown files with YAML headers, with a small self-hosted sync server.",
   "type": "module",

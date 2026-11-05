@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, uniquePath, slugify, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey,
+  fromMarkdown, toMarkdown, newRestaurant, uniquePath, slugify, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
 } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
@@ -119,4 +119,16 @@ test('directions use the location when there is one, otherwise the address', asy
   assert.equal(addressOnly.waze, `https://waze.com/ul?q=${encodeURIComponent('Joe’s, 5 Elm St, Knoxville, TN')}&navigate=yes`);
 
   assert.equal(directionLinks(newRestaurant({ name: 'Nowhere' })), null);
+});
+
+test('nameMatches: every word typed starts a word of the name', () => {
+  assert.ok(nameMatches('The Dillard House', 'The Dillard House'));
+  assert.ok(nameMatches('dillard house', 'Dillard House Restaurant'));
+  assert.ok(nameMatches('calhoun', 'Calhoun’s on the River'));
+  assert.ok(nameMatches('Calhouns River', 'Calhoun’s on the River'));
+  assert.ok(nameMatches('cafe', 'Café Rosé'));
+  assert.ok(nameMatches('the', 'Anything'), 'only little words: no filter');
+  assert.ok(!nameMatches('The Dillard House', 'Waffle House'));
+  assert.ok(!nameMatches('The Dillard House', 'The Chop House'));
+  assert.ok(!nameMatches('The Dillard House', 'The Dam Store'));
 });

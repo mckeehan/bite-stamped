@@ -30,31 +30,40 @@ export function createPlaces({ apiKey, fetch: doFetch = (...a) => fetch(...a) })
     const lat = Number(url.searchParams.get('lat'));
     const lon = Number(url.searchParams.get('lon'));
     const hasPlace = url.searchParams.has('lat') && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
-    // anywhere=1 (places to try): the location only ranks results, it doesn't limit them.
+    // anywhere=1 (places to try): as wide as Foursquare goes around the location
+    // (100 km; without a radius it would be 22 km).
     const anywhere = url.searchParams.get('anywhere') === '1';
+    // near=<town>: search there instead of around the location. Foursquare
+    // has no worldwide search, so this is how to find a place far away.
+    const near = (url.searchParams.get('near') || '').trim().slice(0, 100);
     limit(user.email);
 
-    const params = new URLSearchParams({ query: q, limit: '20' });
+    const around = new URLSearchParams({ query: q, limit: '20' });
     if (hasPlace) {
       // Rounded to about 100 m: enough to rank what is close.
-      params.set('ll', `${lat.toFixed(3)},${lon.toFixed(3)}`);
-      if (!anywhere) params.set('radius', '50000');
+      around.set('ll', `${lat.toFixed(3)},${lon.toFixed(3)}`);
+      around.set('radius', anywhere ? '100000' : '50000');
     }
-    let res;
-    try {
-      res = await doFetch(`${ENDPOINT}?${params}`, {
-        headers: { Authorization: `Bearer ${apiKey}`, 'X-Places-Api-Version': API_VERSION, Accept: 'application/json' },
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch {
-      throw new HttpError(502, { error: 'Place search is not available right now' });
-    }
+    let res = near ? await ask(new URLSearchParams({ query: q, near, limit: '20' })) : null;
+    // A town Foursquare can't place: search around the location instead.
+    if (!res || res.status === 400) res = await ask(around);
     if (!res.ok) {
       console.warn(`[bite-stamped] Foursquare search failed: HTTP ${res.status}`);
       throw new HttpError(502, { error: 'Place search is not available right now' });
     }
     const data = await res.json();
     return json({ places: (data.results || []).map(toPlace).filter((p) => p.name && Number.isFinite(p.lat)) });
+  }
+
+  async function ask(params) {
+    try {
+      return await doFetch(`${ENDPOINT}?${params}`, {
+        headers: { Authorization: `Bearer ${apiKey}`, 'X-Places-Api-Version': API_VERSION, Accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new HttpError(502, { error: 'Place search is not available right now' });
+    }
   }
 
   return { enabled: Boolean(apiKey), search };

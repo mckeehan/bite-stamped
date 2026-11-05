@@ -12,10 +12,12 @@ directly from the browser. The code is in [`app/js/places.js`](../app/js/places.
 - **Nearby:** when the screen opens, it lists food places (restaurants, fast
   food, cafés, bakeries, pubs, bars, ice cream) within about 3 km of you,
   closest first. Typing filters this list on the device.
-- **Places you've been:** restaurants with a visit in your journal are in the
-  list too, marked "✓ Visited", even when OpenStreetMap doesn't have them.
-  With your location, those within about 5 miles (8 km) sort in by distance;
-  without it (or offline), all of them are listed, most recent visit first.
+- **Your journal:** restaurants you've visited ("✓ Visited") or want to try
+  ("✓ On your to-try list") are in the list too, even when OpenStreetMap
+  doesn't have them. Before you type: with your location, those within about
+  5 miles (8 km) sort in by distance; without it (or offline), all of them,
+  most recent first. Typing finds any of them by name, however far away.
+  When adding a place to try, they only show once what you type matches.
 - **Search:** pressing Search looks the name up near you first (about 30 km),
   then anywhere.
 - **Places to try:** when the new restaurant is one to try (added from the
@@ -37,9 +39,18 @@ but only when OpenStreetMap has nothing:
   you stop typing for 1.5 seconds (at least 3 characters), the app asks
   Foursquare.
 - **After Search:** if Nominatim finds nothing (or isn't reachable), the app
-  asks Foursquare right away.
+  asks Foursquare right away. If Nominatim finds only streets or towns by
+  that name (no restaurant), it asks Foursquare too and lists its results
+  first.
+- **Somewhere else:** Foursquare has no worldwide search; it only looks
+  around a place. Add the town after a comma ("The Dillard House, Dillard
+  GA") and it searches in that town instead of around you. A town it can't
+  place is ignored.
 
-The results show "Not on OpenStreetMap. Results from Foursquare."
+The results show "Not on OpenStreetMap. Results from Foursquare." Foursquare
+also returns places that merely share a word with the search; the app keeps
+only those whose name has every word you typed (apart from "the", "and" and
+the like).
 
 - **On request:** when Foursquare hasn't been asked about what you typed (at
   least 3 characters), a "Search Foursquare for …" button under the results
@@ -75,7 +86,9 @@ Without the key the fallback is off and the app never mentions Foursquare.
   available to the signed-in user; that is how the app knows to use it.
 - The location is rounded to about 100 m before it leaves the server.
   Foursquare searches within 50 km of it; for a place to try
-  (`anywhere=1`), the location only ranks the results.
+  (`anywhere=1`) within 100 km, the most it allows (without a radius it
+  would use 22 km). With `near=<town>` (the text after a comma) it searches
+  in that town instead, without the location.
 - Results are turned into the same shape as OpenStreetMap results, so
   picking one fills in the same fields (name, address, city, state, country,
   phone, website, location and cuisine from Foursquare's categories).

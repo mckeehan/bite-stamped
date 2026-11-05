@@ -86,13 +86,37 @@ test('the key never reaches the browser', async () => {
   }
 });
 
-test('nearby searches stay within 50 km; anywhere=1 (places to try) only ranks by the location', async () => {
+test('nearby searches stay within 50 km; anywhere=1 (places to try) goes to 100 km', async () => {
   const fsq = fakeFoursquare();
   const srv = testServer({ foursquareKey: 'test-key', fetch: fsq.fetch });
   const f = await signIn(srv);
   await f('/api/places/search?q=calhouns&lat=35.96&lon=-83.92');
   await f('/api/places/search?q=calhouns&lat=35.96&lon=-83.92&anywhere=1');
   assert.equal(fsq.calls[0].url.searchParams.get('radius'), '50000');
-  assert.equal(fsq.calls[1].url.searchParams.get('radius'), null);
+  assert.equal(fsq.calls[1].url.searchParams.get('radius'), '100000');
   assert.equal(fsq.calls[1].url.searchParams.get('ll'), '35.960,-83.920');
+});
+
+test('near=<town> searches in that town; a town Foursquare cannot place falls back to the location', async () => {
+  const calls = [];
+  const fetch = async (url) => {
+    const u = new URL(url);
+    calls.push(u);
+    if (u.searchParams.get('near') === 'Nowhereville') return new Response('{"message":"bad near"}', { status: 400 });
+    return new Response(JSON.stringify(SAMPLE), { headers: { 'Content-Type': 'application/json' } });
+  };
+  const srv = testServer({ foursquareKey: 'test-key', fetch });
+  const f = await signIn(srv);
+
+  const res = await f('/api/places/search?q=The%20Dillard%20House&near=Dillard%20GA&lat=35.96&lon=-83.92');
+  assert.equal(res.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].searchParams.get('near'), 'Dillard GA');
+  assert.equal(calls[0].searchParams.get('query'), 'The Dillard House');
+  assert.equal(calls[0].searchParams.get('ll'), null);
+
+  assert.equal((await f('/api/places/search?q=calhouns&near=Nowhereville&lat=35.96&lon=-83.92')).status, 200);
+  assert.equal(calls.length, 3);
+  assert.equal(calls[2].searchParams.get('near'), null);
+  assert.equal(calls[2].searchParams.get('ll'), '35.960,-83.920');
 });

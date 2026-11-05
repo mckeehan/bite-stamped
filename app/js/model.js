@@ -277,6 +277,17 @@ export function nameKey(name) {
     .replace(/['’`]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^the /, '');
 }
 
+// Whether a place's name fits what was searched for: every word typed (but
+// "the", "and"…) starts a word of the name, or the other way round for longer
+// words ("calhoun" finds "Calhoun's", "bbq" doesn't find "Waffle House").
+const LITTLE_WORDS = new Set(['the', 'a', 'an', 'and', 'of', 'at', 'on', 'in']);
+export function nameMatches(query, name) {
+  const words = nameKey(query).split(' ').filter((w) => w && !LITTLE_WORDS.has(w));
+  if (!words.length) return true;
+  const have = nameKey(name).split(' ');
+  return words.every((w) => have.some((h) => h.startsWith(w) || (h.length >= 4 && w.startsWith(h))));
+}
+
 const sameName = (a, b) => a === b || a.startsWith(`${b} `) || b.startsWith(`${a} `);
 const streetKey = (address) => nameKey(str(address).split(',')[0]);
 

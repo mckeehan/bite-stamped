@@ -15,6 +15,42 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-11-05
+
+### Added
+
+- Adding a restaurant also lists the places on your To Try list, marked
+  "On your to-try list", next to the ones you've visited.
+
+### Changed
+
+- Typing in the place search finds any restaurant in your journal by name,
+  however far away; the 5-mile limit only applies to the list shown before
+  you type.
+
+## [1.1.1] - 2026-11-05
+
+### Fixed
+
+- Foursquare results that don't match the name you typed (a search for
+  "The Dillard House" listed Waffle House and The Chop House nearby) are left
+  out. With nothing left, the app says so and suggests adding the town.
+
+## [1.1.0] - 2026-11-05
+
+### Added
+
+- Place search: add the town after a comma ("The Dillard House, Dillard GA")
+  to find a restaurant somewhere else through Foursquare.
+- When OpenStreetMap finds only streets or towns by that name, the app asks
+  Foursquare for the restaurant too, and lists its results first.
+
+### Fixed
+
+- Adding a place to try searched Foursquare only within about 22 km
+  (Foursquare's default without a radius) instead of everywhere; it now
+  uses Foursquare's widest area, 100 km, or the town you name.
+
 ## [1.0.0] - 2026-11-05
 
 The first release numbered with semantic versioning. The app is the same as
