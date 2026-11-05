@@ -253,6 +253,18 @@ export function matches(r, query) {
   return q.split(/\s+/).every((word) => hay.includes(word));
 }
 
+// The first line of a place's notes as plain text, for a list card: Markdown
+// marks (headings, lists, quotes, emphasis, links) left out. '' without notes.
+export function notePreview(notes) {
+  const line = str(notes).split('\n').map((l) => l.trim()).find((l) => l && !/^([-*_])\1{2,}$/.test(l));
+  if (!line) return '';
+  return line
+    .replace(/^#{1,6}\s+/, '').replace(/^>\s*/, '').replace(/^([-*+]|\d+[.)])\s+/, '').replace(/^\[[ xX]\]\s+/, '')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__|~~|`)/g, '').replace(/(^|\W)[*_](\S|\S.*?\S)[*_](?=\W|$)/g, '$1$2')
+    .trim().slice(0, 200);
+}
+
 export function placeLine(r) {
   return [r.city, r.state && r.state !== r.city ? r.state : '', r.countryCode && r.countryCode.toUpperCase() !== 'US' ? r.country : '']
     .filter(Boolean)

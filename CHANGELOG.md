@@ -15,6 +15,20 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.2.1] - 2026-11-05
+
+### Fixed
+
+- The note line of 2.2.0 went into the Timeline's cards instead of the lists'
+  and stopped the Timeline from showing.
+
+## [2.2.0] - 2026-11-05
+
+### Added
+
+- On the Visited and To Try lists (and the map's place card), a place with
+  notes shows their first line, in italics after a 📝, without Markdown marks.
+
 ## [2.1.0] - 2026-11-05
 
 ### Added

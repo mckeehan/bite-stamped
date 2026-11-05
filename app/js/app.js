@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, isFoodPlace, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
+  newRestaurant, notePreview, isFoodPlace, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, addressAt } from './places.js';
@@ -317,6 +317,8 @@ function renderList(tab) {
     const when = tab === 'totry'
       ? (r.created ? `Added ${formatDate(r.created)}` : '')
       : r.visits.length ? `${r.visits.length} visit${r.visits.length > 1 ? 's' : ''} · ${formatDate(last)}` : '';
+    // The notes' first line, so places with notes stand out.
+    const note = notePreview(r.notes);
     return `<a class="card" href="${link(r.path)}">
       ${thumb(r)}
       <span class="card-body">
@@ -324,6 +326,7 @@ function renderList(tab) {
         ${stars(displayRating(r), { size: 'small' })}
         ${sub ? `<small>${esc(sub)}</small>` : ''}
         ${when ? `<small class="muted">${esc(when)}</small>` : ''}
+        ${note ? `<small class="note-line"><span aria-hidden="true">📝 </span>${esc(note)}</small>` : ''}
       </span></a>`;
   };
 

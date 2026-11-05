@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
+  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, notePreview, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
 } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
@@ -178,4 +178,14 @@ test('a place found on Foursquare keeps its id, and links to its page there', ()
   assert.equal(foursquareURL(r.foursquareId), 'https://foursquare.com/v/4bb8a6e97421a59318f2c140');
   assert.equal(foursquareURL(''), '');
   assert.ok(!toMarkdown(newRestaurant({ name: 'x' })).includes('foursquareId'), 'not written when empty');
+});
+
+test('notePreview: the first line of the notes, without Markdown marks', () => {
+  assert.equal(notePreview(''), '');
+  assert.equal(notePreview('\n\n  Fabulous carrot cake\nSecond line'), 'Fabulous carrot cake');
+  assert.equal(notePreview('* Shrimp Loco has very good **spinach**'), 'Shrimp Loco has very good spinach');
+  assert.equal(notePreview('## Heard about it on _Diners, Drive-Ins and Dives_'), 'Heard about it on Diners, Drive-Ins and Dives');
+  assert.equal(notePreview('From [Taking the kids](https://example.com/x?utm_source=tn)'), 'From Taking the kids');
+  assert.equal(notePreview('---\n> Ask for the `cacio e pepe`'), 'Ask for the cacio e pepe');
+  assert.equal(notePreview('snake_case_name stays'), 'snake_case_name stays');
 });
