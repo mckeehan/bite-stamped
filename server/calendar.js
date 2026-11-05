@@ -117,7 +117,8 @@ function fold(line) {
 const pad = (n) => String(n).padStart(2, '0');
 const stamp = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
 
-// A visit's date as DTSTART/DTEND lines: an hour from that time, or the whole
+// A visit's date as DTSTART/DTEND lines: a moment at that time (the end is the
+// start, written out so no app adds a default length of its own), or the whole
 // day when only the date is known. null if not a date. Times are stored as
 // clock times without a zone; they go out in UTC, read in `zone`, because
 // some calendar apps (Apple's) take times without a zone for UTC.
@@ -126,7 +127,8 @@ function when(date, zone) {
   if (!m) return null;
   const [, y, mo, d, h, min] = m;
   if (h) {
-    return [`DTSTART:${stamp(zonedTime(Number(y), Number(mo), Number(d), Number(h), Number(min), zone))}`, 'DURATION:PT1H'];
+    const at = stamp(zonedTime(Number(y), Number(mo), Number(d), Number(h), Number(min), zone));
+    return [`DTSTART:${at}`, `DTEND:${at}`];
   }
   const next = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d) + 1));
   return [`DTSTART;VALUE=DATE:${y}${mo}${d}`, `DTEND;VALUE=DATE:${next.getUTCFullYear()}${pad(next.getUTCMonth() + 1)}${pad(next.getUTCDate())}`];

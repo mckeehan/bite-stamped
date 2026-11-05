@@ -24,7 +24,9 @@ The feed comes from the server's copy of your journal, so it needs
 
 One event per visit, titled with the restaurant's name:
 
-- A visit with a time is an hour-long event at that time. The app keeps
+- A visit with a time is an event at that moment, with no length: it ends
+  when it starts, so calendar apps show it as a short marker at that time
+  (Google Calendar draws it like a 15–30 minute event). The app keeps
   visit times as clock times without a time zone, so the feed reads them in
   the time zone of the device that created the link (or, for a link made
   before that was kept, the server's), daylight saving time included, and

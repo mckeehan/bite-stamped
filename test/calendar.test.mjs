@@ -31,7 +31,7 @@ const taco = newRestaurant({
   ],
 });
 
-test('visits become events: timed ones an hour long, date-only ones all day', () => {
+test('visits become events: timed ones a moment (end = start), date-only ones all day', () => {
   const ics = toICS([taco], { appURL: 'https://www.example.com/bites/', now: new Date(Date.UTC(2026, 10, 5, 12, 0, 0)), timeZone: 'America/New_York' });
   assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
   assert.match(ics, /END:VCALENDAR\r\n$/);
@@ -40,7 +40,7 @@ test('visits become events: timed ones an hour long, date-only ones all day', ()
   const events = text.split('BEGIN:VEVENT').slice(1);
   assert.equal(events.length, 2);
   // 7:24 pm in New York in November (EST, UTC-5) is 00:24 UTC the next day.
-  assert.match(events[0], /DTSTART:20261103T002400Z\r\nDURATION:PT1H/);
+  assert.match(events[0], /DTSTART:20261103T002400Z\r\nDTEND:20261103T002400Z\r\n/);
   assert.match(events[0], /SUMMARY:Taco Bell/);
   assert.match(events[0], /LOCATION:1407 Winfield Dunn Pkwy\\, Sevierville\\, TN/);
   assert.match(events[0], /GEO:35.87;-83.56/);
