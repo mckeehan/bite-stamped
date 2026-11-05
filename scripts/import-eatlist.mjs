@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { newRestaurant, toMarkdown, uniquePath, mediaDir, today } from '../app/js/model.js';
+import { newRestaurant, toMarkdown, restaurantPath, mediaDir, today } from '../app/js/model.js';
 import { createZip } from '../app/js/zip.js';
 
 const DEFAULT_STORE = join(homedir(), 'Library/Containers/yqiang.Eatlist/Data/Library/Application Support/Eatlist/Eatlist_CloudKit.sqlite');
@@ -94,7 +94,7 @@ try {
       notes: row.notes,
       created: toDate(row.created)?.toISOString(),
     });
-    r.path = uniquePath(r.name, paths);
+    r.path = restaurantPath(r, paths);
     paths.push(r.path);
 
     r.visits = visits.filter((v) => v.restaurant === row.pk).map((v) => ({

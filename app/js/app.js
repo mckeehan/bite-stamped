@@ -766,7 +766,7 @@ function renderEdit(path, params) {
     // A new place that isn't just "to try" was visited: record a visit for now,
     // with the rating given here.
     if (!existing && !r.toTry) r.visits = [{ date: now(), rating: r.rating, people: [], notes: '' }];
-    const saved = await repo.save(r);
+    const saved = await repo.save(r, { rename: true });
     location.replace(link(saved.path));
   });
 }
@@ -1502,5 +1502,15 @@ window.addEventListener('hashchange', () => {
   route();
   watchForUpdates();
   await sync.init();
-  sync.sync();
+  // Restaurant files from before the naming pattern (STATE-city-name) get
+  // their new names, after the server's changes are in, so a device that
+  // comes second finds them renamed already.
+  try { await sync.sync(); } catch {}
+  const moved = await repo.renameAll();
+  if (moved.size) {
+    const [, screen, path] = location.hash.match(/^#\/(r|edit)\/([^?]+)/) || [];
+    const next = path && moved.get(decodeURIComponent(path));
+    if (next) location.replace(`#/${screen}/${encodeURIComponent(next)}`);
+    else if (!sheet.open && !/^#\/(new|edit\/|settings)/.test(location.hash)) render();
+  }
 })();

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, uniquePath, slugify, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
+  fromMarkdown, toMarkdown, newRestaurant, restaurantPath, fileWord, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
 } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
@@ -51,10 +51,37 @@ photos:
   assert.deepEqual(r.photos, [{ file: 'media/x/1.jpg', title: '', date: '' }]);
 });
 
-test('paths are unique and readable', () => {
-  assert.equal(slugify('Café & Bar Zürich!'), 'cafe-and-bar-zurich');
-  assert.equal(uniquePath('Chez Marie', ['restaurants/chez-marie.md']), 'restaurants/chez-marie-2.md');
-  assert.equal(mediaDir('restaurants/chez-marie-2.md'), 'media/chez-marie-2/');
+test('file names: STATE-city-name, unique, readable', () => {
+  assert.equal(fileWord("Debbie's Drive-Inn!"), 'debbie-s-drive-inn');
+  assert.equal(fileWord('Café & Bar Zürich'), 'cafe-bar-zurich');
+  assert.equal(stateCode('TN'), 'TN');
+  assert.equal(stateCode('tn'), 'TN');
+  assert.equal(stateCode('Tennessee'), 'TN');
+  assert.equal(stateCode('North Carolina'), 'NC');
+  assert.equal(stateCode('Québec'), 'QC');
+  assert.equal(stateCode('Bern'), 'BERN');
+  assert.equal(stateCode(''), '');
+
+  const debbie = { name: "Debbie's Drive Inn", city: 'Newport', state: 'Tennessee' };
+  assert.equal(restaurantPath(debbie, []), 'restaurants/TN-newport-debbie-s-drive-inn.md');
+  assert.equal(restaurantPath({ name: 'Chez Marie' }, []), 'restaurants/chez-marie.md', 'no state or city');
+  assert.equal(restaurantPath({ name: '' }, []), 'restaurants/restaurant.md');
+
+  // Another restaurant with the same name and town: -2, -3…, whatever the case.
+  const taco = { name: 'Taco Bell', city: 'Sevierville', state: 'TN' };
+  assert.equal(restaurantPath(taco, ['restaurants/TN-sevierville-taco-bell.md']), 'restaurants/TN-sevierville-taco-bell-2.md');
+  assert.equal(restaurantPath(taco, ['restaurants/tn-sevierville-taco-bell.md', 'restaurants/TN-sevierville-taco-bell-2.md']), 'restaurants/TN-sevierville-taco-bell-3.md');
+
+  // A restaurant keeps a name that already fits, suffix included; an old-style one moves.
+  const second = { ...taco, path: 'restaurants/TN-sevierville-taco-bell-2.md' };
+  assert.equal(restaurantPath(second, ['restaurants/TN-sevierville-taco-bell.md', second.path]), second.path);
+  const old = { ...taco, path: 'restaurants/taco-bell.md' };
+  assert.equal(restaurantPath(old, [old.path]), 'restaurants/TN-sevierville-taco-bell.md');
+  // Renamed in the app: a new name, and the old one is free again.
+  const moved = { ...taco, city: 'Kodak', path: 'restaurants/TN-sevierville-taco-bell.md' };
+  assert.equal(restaurantPath(moved, [moved.path]), 'restaurants/TN-kodak-taco-bell.md');
+
+  assert.equal(mediaDir('restaurants/TN-newport-debbie-s-drive-inn.md'), 'media/TN-newport-debbie-s-drive-inn/');
 });
 
 test('rating falls back to the visit average', () => {

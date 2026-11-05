@@ -4,9 +4,29 @@ Each restaurant is one Markdown file with a YAML header. Images sit next to
 them in `media/`:
 
 ```
-restaurants/trattoria-da-luca.md
-media/trattoria-da-luca/mw0ryxwb-oxql.jpg
+restaurants/TN-knoxville-trattoria-da-luca.md
+media/TN-knoxville-trattoria-da-luca/mw0ryxwb-oxql.jpg
 ```
+
+## File names
+
+`restaurants/<STATE>-<city>-<name>.md`:
+
+- **STATE** is the state's two-letter abbreviation in upper case (`TN` for
+  "Tennessee" or "tn"; Canadian provinces too). A state the app has no
+  abbreviation for is written out in upper case.
+- **city** and **name** are in lower case; accents are dropped and every run
+  of characters other than a–z and 0–9 becomes `-`
+  ("Debbie's Drive Inn" → `debbie-s-drive-inn`).
+- A part that is empty is left out (`restaurants/chez-marie.md` for a place
+  without state or city).
+- When another restaurant already has the name, `-2`, `-3`… is added
+  (`TN-sevierville-taco-bell-2.md`). Names count as taken regardless of case.
+
+Changing a restaurant's name, city or state in the app renames its file.
+Images keep their paths, since the header refers to them by path; new ones
+go into the folder of the new name. Files from before this naming (version
+1.3.0) are renamed the first time the app starts after updating.
 
 ```markdown
 ---

@@ -17,7 +17,7 @@ versions/<path>/<rev>    every version of every file: the history
 files/<path>             the current version of each file, as plain files
 ```
 
-`<path>` is the file's path in the journal: `restaurants/<name>.md`, or an
+`<path>` is the file's path in the journal: `restaurants/<STATE>-<city>-<name>.md`, or an
 image under `media/` (see [data-format.md](data-format.md)).
 
 `files/` is a convenient read-only view for browsing the Markdown and images.
@@ -94,13 +94,13 @@ The app has no screen for this yet. By hand:
    name sorts them oldest first:
 
    ```bash
-   ls -l versions/restaurants/main-street-tavern.md/
+   ls -l versions/restaurants/TN-knoxville-main-street-tavern.md/
    ```
 
 2. Look at a version; each one is the complete file:
 
    ```bash
-   cat versions/restaurants/main-street-tavern.md/mw0xb152-UMBg_mwF
+   cat versions/restaurants/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF
    ```
 
 3. To restore it, put it in a ZIP under its journal path and import that ZIP
@@ -110,7 +110,7 @@ The app has no screen for this yet. By hand:
 
    ```bash
    mkdir -p restore/restaurants
-   cp versions/restaurants/main-street-tavern.md/mw0xb152-UMBg_mwF restore/restaurants/main-street-tavern.md
+   cp versions/restaurants/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF restore/restaurants/TN-knoxville-main-street-tavern.md
    (cd restore && zip -r ../restore.zip restaurants)
    ```
 

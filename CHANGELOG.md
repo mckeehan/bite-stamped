@@ -15,6 +15,21 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-11-05
+
+### Changed
+
+- Restaurant files are named `<STATE>-<city>-<name>.md`, e.g.
+  `TN-newport-debbie-s-drive-inn.md`: the state's two-letter abbreviation,
+  then city and name in lower case with other characters as `-`; `-2`, `-3`…
+  when the name is taken. Existing files are renamed the first time the app
+  starts after updating, and a file is renamed when you change the
+  restaurant's name, city or state. Images stay where they are.
+
+### Fixed
+
+- Deleting a restaurant also deletes images kept outside its folder.
+
 ## [1.2.0] - 2026-11-05
 
 ### Added

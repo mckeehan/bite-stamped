@@ -16,24 +16,58 @@ const rating = (v) => {
   return n === null ? 0 : Math.max(0, Math.min(5, Math.round(n)));
 };
 
-export function slugify(name) {
-  const s = str(name)
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-    .replace(/-+$/, '');
-  return s || 'restaurant';
+// --- file names ---
+// restaurants/<STATE>-<city>-<name>.md, e.g. restaurants/TN-newport-debbie-s-drive-inn.md:
+// the state as its upper-case two-letter abbreviation, city and name in lower
+// case with every run of other characters than a-z and 0-9 replaced by "-".
+// Parts that are empty are left out; another restaurant with the same name
+// gets -2, -3… at the end.
+
+const US_STATES = {
+  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO', connecticut: 'CT',
+  delaware: 'DE', 'district of columbia': 'DC', florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID', illinois: 'IL',
+  indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY', louisiana: 'LA', maine: 'ME', maryland: 'MD',
+  massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS', missouri: 'MO', montana: 'MT',
+  nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+  'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA',
+  'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT',
+  vermont: 'VT', virginia: 'VA', washington: 'WA', 'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY',
+  'puerto rico': 'PR', guam: 'GU', 'u.s. virgin islands': 'VI', 'united states virgin islands': 'VI',
+  'american samoa': 'AS', 'northern mariana islands': 'MP',
+  // Canada
+  alberta: 'AB', 'british columbia': 'BC', manitoba: 'MB', 'new brunswick': 'NB', 'newfoundland and labrador': 'NL',
+  'nova scotia': 'NS', ontario: 'ON', 'prince edward island': 'PE', quebec: 'QC', québec: 'QC', saskatchewan: 'SK',
+  'northwest territories': 'NT', nunavut: 'NU', yukon: 'YT',
+};
+
+// Lower case, accents dropped, anything but a-z and 0-9 as "-".
+export function fileWord(text) {
+  return str(text).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '');
 }
 
-export function uniquePath(name, takenPaths) {
-  const taken = new Set(takenPaths);
-  const base = slugify(name);
-  let path = `${RESTAURANT_DIR}${base}.md`;
-  for (let n = 2; taken.has(path); n++) path = `${RESTAURANT_DIR}${base}-${n}.md`;
+// "Tennessee" or "tn" → "TN". A state not in the list (outside the US and
+// Canada) is written out in upper case.
+export function stateCode(state) {
+  const s = str(state).trim();
+  if (/^[a-z]{2}$/i.test(s)) return s.toUpperCase();
+  return US_STATES[s.toLowerCase()] || fileWord(s).toUpperCase();
+}
+
+export function fileBase(r) {
+  return [stateCode(r.state), fileWord(r.city), fileWord(r.name)].filter(Boolean).join('-') || 'restaurant';
+}
+
+// The path a restaurant should have: its current one if that already follows
+// the pattern, otherwise a free one. Paths count as taken regardless of case
+// (the server may keep files on a disk that ignores case).
+export function restaurantPath(r, takenPaths) {
+  const base = `${RESTAURANT_DIR}${fileBase(r)}`;
+  const own = r.path || '';
+  if (own === `${base}.md` || (own.startsWith(`${base}-`) && /^-\d+\.md$/.test(own.slice(base.length)))) return own;
+  const taken = new Set([...takenPaths].filter((p) => p !== own).map((p) => p.toLowerCase()));
+  let path = `${base}.md`;
+  for (let n = 2; taken.has(path.toLowerCase()); n++) path = `${base}-${n}.md`;
   return path;
 }
 

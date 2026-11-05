@@ -2,7 +2,7 @@
 // file store. Also owns image object URLs and ZIP export/import.
 
 import * as store from './store.js';
-import { fromMarkdown, toMarkdown, uniquePath, mediaDir, imagesOf, RESTAURANT_DIR, MEDIA_DIR } from './model.js';
+import { fromMarkdown, toMarkdown, restaurantPath, mediaDir, imagesOf, RESTAURANT_DIR, MEDIA_DIR } from './model.js';
 import { createZip, readZip } from './zip.js';
 import { shrinkImage } from './images.js';
 
@@ -39,17 +39,51 @@ export function knownTags() {
   return [...new Set(all().flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b));
 }
 
-export async function save(r) {
-  if (!r.path) r.path = uniquePath(r.name, restaurants.keys());
+// Saves a restaurant; a new one gets its file name (model.js: restaurantPath).
+// With `rename` (after editing name, city or state), an existing one moves to
+// the name that now fits; its images stay where they are, since the file
+// refers to them by path. Returns the restaurant, with its path.
+export async function save(r, { rename = false } = {}) {
+  const old = r.path;
+  if (!old || rename) r.path = restaurantPath(r, restaurants.keys());
   r.updated = new Date().toISOString();
   await store.writeFile(r.path, toMarkdown(r));
+  if (old && old !== r.path) {
+    await store.deleteFile(old);
+    restaurants.delete(old);
+  }
   restaurants.set(r.path, r);
   return r;
+}
+
+// Gives every restaurant whose file name doesn't follow the pattern yet the
+// name that does (once, after the naming changed). Returns old → new paths.
+// Two devices doing this at the same time end up with the same names (the
+// same rule, in the same order), so sync sees the same files.
+export async function renameAll() {
+  const moved = new Map();
+  // By name without .md, so taco-bell.md comes before taco-bell-2.md and keeps
+  // the name without a number.
+  const key = (r) => r.path.replace(/\.md$/, '');
+  for (const r of [...restaurants.values()].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0))) {
+    const path = restaurantPath(r, restaurants.keys());
+    if (path === r.path) continue;
+    const old = r.path;
+    const next = { ...r, path };
+    await store.writeFile(path, toMarkdown(next));
+    await store.deleteFile(old);
+    restaurants.delete(old);
+    restaurants.set(path, next);
+    moved.set(old, path);
+  }
+  return moved;
 }
 
 export async function remove(r) {
   await store.deleteFile(r.path);
   await store.deletePrefix(mediaDir(r.path));
+  // Images from before a rename are in the folder of the old name.
+  for (const file of imagesOf(r)) await store.deleteFile(file);
   for (const file of imagesOf(r)) forgetImage(file);
   restaurants.delete(r.path);
 }
