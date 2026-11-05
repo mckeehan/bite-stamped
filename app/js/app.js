@@ -865,22 +865,27 @@ function setUpPlacePicker(form) {
   let candidateList = [];
   const candidates = () => {
     if (candidatesFor === nearby && candidateList.position === position) return candidateList;
-    const covered = new Set(nearby.map((p) => findInJournal(p, journal)).filter(Boolean));
+    // Nearby places that are in the journal know it, so they can be told apart.
+    const near = nearby.map((p) => ({ ...p, mine: findInJournal(p, journal) }));
+    const covered = new Set(near.map((p) => p.mine).filter(Boolean));
     const extra = (position ? visited : byLastVisit).filter((p) => !covered.has(p.mine)).map((p) => ({
       ...p,
       distance: position ? (Number.isFinite(p.lat) ? distance(position, p) : Infinity) : undefined,
     })).filter((p) => !position || p.distance <= VISITED_RADIUS);
     candidateList = position
-      ? [...nearby, ...extra].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
-      : [...nearby, ...extra];
+      ? [...near, ...extra].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+      : [...near, ...extra];
     candidateList.position = position;
     candidatesFor = nearby;
     return candidateList;
   };
 
+  // Adding a place to try: places already in the journal only show up when
+  // they match what was typed.
   const nearbyMatching = (q) => {
     const fq = fold(q);
-    return q ? candidates().filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq)) : candidates();
+    if (!q) return anywhere() ? candidates().filter((p) => !p.mine) : candidates();
+    return candidates().filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq));
   };
 
   // Fallback search (Foursquare, through our server; only when the server has a
