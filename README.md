@@ -69,10 +69,13 @@ Examples for Linux (systemd) and macOS (launchd):
 ### Update
 
 To update: `git pull`, then restart the service
-([how](docs/run-as-a-service.md#restart-after-an-update)). With every change to the
-app, raise the version and date in `app/js/version.js` (shown at the bottom
-of Settings) and the same version in `VERSION` in `app/sw.js` (`npm test`
-checks they match), and add new files to the list in `app/sw.js`, so
-installed copies update. They pick up the new version the next time they are
+([how](docs/run-as-a-service.md#restart-after-an-update)). What changed in each release is in
+[CHANGELOG.md](CHANGELOG.md).
+
+To make a release: raise the [semantic version](CHANGELOG.md) and the date in
+`app/js/version.js` (shown at the bottom of Settings), put the same version
+in `VERSION` in `app/sw.js` and in `package.json`, add an entry at the top of
+CHANGELOG.md (`npm test` checks all of these match), and add new files to the
+list in `app/sw.js`, so installed copies update. They pick up the new version the next time they are
 opened or brought to the front, and reload into it as soon as nothing is being
 edited.
