@@ -9,6 +9,7 @@ import { openStorage } from './storage.js';
 import { createAuth } from './auth.js';
 import { createFiles } from './files.js';
 import { createPlaces } from './places.js';
+import { createCalendar } from './calendar.js';
 import { sendMail } from './smtp.js';
 import { json, HttpError } from './http.js';
 
@@ -69,6 +70,7 @@ export function createApp(config) {
   const auth = createAuth({ storage, config, sendCode: config.sendCode || codeSender(config) });
   const files = createFiles({ storage });
   const places = createPlaces({ apiKey: config.foursquareKey, fetch: config.fetch });
+  const calendar = createCalendar({ storage, config });
   const limitSignIn = rateLimiter(20, 60 * 60_000);
 
   // `pathname` is the path inside the app, without BASE_PATH.
@@ -80,6 +82,10 @@ export function createApp(config) {
     if (pathname === '/api/auth/verify' && method === 'POST') { limitSignIn(ip); return auth.verify(request, url); }
     if (pathname === '/api/auth/logout' && method === 'POST') return auth.logout(request, url);
 
+    // Calendar apps can't sign in: the token in the link is the key.
+    const ics = pathname.match(/^\/api\/calendar\/([^/]+)\.ics$/);
+    if (ics && method === 'GET') return calendar.feed(ics[1], url);
+
     const user = auth.currentUser(request);
     if (pathname === '/api/auth/me' && method === 'GET') {
       // fallbackSearch: whether /api/places/search is there for this user.
@@ -89,6 +95,11 @@ export function createApp(config) {
 
     if (pathname === '/api/changes' && method === 'GET') return files.changes(url);
     if (pathname === '/api/places/search' && method === 'GET') return places.search(url, user);
+    if (pathname === '/api/calendar') {
+      if (method === 'GET') return calendar.info(user, url);
+      if (method === 'POST') return calendar.create(user, url, request);
+      if (method === 'DELETE') return calendar.remove(user);
+    }
     if (pathname.startsWith('/api/files/')) {
       const path = decodeURIComponent(pathname.slice('/api/files/'.length));
       if (method === 'GET') return files.get(path, url.searchParams.get('rev'));

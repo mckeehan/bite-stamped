@@ -209,5 +209,15 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
       await store.setMeta('account', null);
       set({ email: null, status: 'signed-out', fallbackSearch: false });
     },
+    // The private calendar link of the signed-in account: GET (null if none),
+    // POST (a new one; the old stops working) or DELETE. → { url } or throws.
+    // A new link takes this device's time zone, which visit times are in.
+    async calendar(method = 'GET') {
+      const res = await api('/api/calendar', method === 'POST'
+        ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) }
+        : { method });
+      if (!res.ok) throw new Error(`The server said no (${res.status})`);
+      return res.json();
+    },
   };
 }

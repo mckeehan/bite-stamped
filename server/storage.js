@@ -1,5 +1,6 @@
 // Everything the server keeps, under one data folder:
-//   bite-stamped.sqlite     file index, change counter, login codes, sessions
+//   bite-stamped.sqlite     file index, change counter, login codes, sessions,
+//                           calendar links
 //   versions/<path>/<rev>   every version of every file (the backup history)
 //   files/<path>            the current version of each file, as a plain folder
 //                           you can back up or browse (read-only: edits there
@@ -55,6 +56,13 @@ export function openStorage(dataDir) {
     },
     dropVersion(path, rev) {
       rmSync(versionPath(path, rev), { force: true });
+    },
+    readVersion(path, rev) {
+      try {
+        return readFileSync(versionPath(path, rev));
+      } catch {
+        return null;
+      }
     },
     versionStream(path, rev) {
       const file = versionPath(path, rev);

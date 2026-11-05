@@ -11,7 +11,8 @@ The code is in [`server/files.js`](../server/files.js) (the sync API) and
 ## What is in `DATA_DIR`
 
 ```
-bite-stamped.sqlite      file index, change counter, login codes, sessions
+bite-stamped.sqlite      file index, change counter, login codes, sessions,
+                         calendar links
 versions/<path>/<rev>    every version of every file: the history
 files/<path>             the current version of each file, as plain files
 ```

@@ -526,3 +526,5 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 
 .cards.timeline { gap: 20px; }
 .day-heading { margin: 0 0 8px; font-size: 1.15rem; }
+
+.feed-url { font-size: 0.85rem; margin-bottom: 10px; }

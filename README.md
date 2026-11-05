@@ -20,6 +20,8 @@ build step, no dependencies at all.
   like the map images; everything else works offline)
 - Offline-first [sync](docs/sync.md) between devices, after signing in with an
   emailed code; conflicting edits are merged
+- Your visits as a [calendar feed](docs/calendar.md) to subscribe to in Apple
+  Calendar, Google Calendar or Outlook, through a private link
 - [Storage and backup](docs/storage-and-backups.md) on your server: every
   version of every file is kept
 - Export and import as a ZIP of Markdown files with YAML headers

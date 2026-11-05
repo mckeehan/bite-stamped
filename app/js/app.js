@@ -1135,6 +1135,7 @@ async function renderSettings() {
       ${est.persisted ? '' : '<button class="btn" id="persist">Ask to keep data permanently</button>'}
     </section>
     <section class="block" id="syncSection"></section>
+    <section class="block" id="calendarSection" hidden></section>
     <section class="block">
       <h2>Backup and files</h2>
       <p class="muted small">Export saves everything as a ZIP: one Markdown file with a YAML header per restaurant, plus the images. Edit the files anywhere and import them again; files with the same name are replaced.</p>
@@ -1156,6 +1157,7 @@ async function renderSettings() {
     <p class="muted small app-version">${esc(releaseLine())}</p>`;
 
   renderSyncSection();
+  renderCalendarSection();
 
   $('#persist')?.addEventListener('click', async () => {
     const ok = await repo.requestPersistence();
@@ -1209,6 +1211,7 @@ const sync = createSync({
     updateTabs();
     // Never redraw the sign-in form while someone may be typing in it.
     if ($('#syncSection') && !$('#signIn')) renderSyncSection();
+    if ($('#calendarSection') && $('#calendarSection').dataset.email !== (sync.state.email || '')) renderCalendarSection();
     // The server says whether it offers the fallback search after Settings is drawn.
     if ($('#fallbackNote')) $('#fallbackNote').hidden = !sync.state.fallbackSearch;
   },
@@ -1221,6 +1224,67 @@ function timeAgo(iso) {
   if (s < 3600) return `${Math.round(s / 60)} min ago`;
   if (s < 86400) return `${Math.round(s / 3600)} h ago`;
   return formatDate(iso.slice(0, 10));
+}
+
+// The visits as a calendar feed (server/calendar.js): a private link that
+// calendar apps subscribe to. Only for a signed-in account, since the feed
+// comes from the server's copy.
+async function renderCalendarSection(link) {
+  const section = $('#calendarSection');
+  if (!section) return;
+  const email = sync.state.email || '';
+  section.dataset.email = email;
+  section.hidden = !email;
+  if (!email) return;
+  const intro = '<h2>Calendar</h2><p class="muted small">Your visits as a calendar to subscribe to in Apple Calendar, Google Calendar or Outlook. It updates on its own; calendar apps check for changes every few hours.</p>';
+  if (link === undefined) {
+    section.innerHTML = `${intro}<p class="muted small">Loading…</p>`;
+    try {
+      link = (await sync.calendar()).url;
+    } catch {
+      if (section.dataset.email === email) section.innerHTML = `${intro}<p class="muted small">The calendar link needs a connection to the server.</p>`;
+      return;
+    }
+    if (section.dataset.email !== email || !section.isConnected) return;
+  }
+  const change = async (method, question) => {
+    if (question && !confirm(question)) return;
+    try {
+      renderCalendarSection((await sync.calendar(method)).url);
+    } catch (e) {
+      toast(`Could not change the calendar link: ${e.message}`);
+    }
+  };
+  if (!link) {
+    section.innerHTML = `${intro}<button class="btn" id="makeFeed">Create calendar link</button>`;
+    $('#makeFeed', section).addEventListener('click', () => change('POST'));
+    return;
+  }
+  const webcal = link.replace(/^https?:/, 'webcal:');
+  section.innerHTML = `${intro}
+    <input type="text" class="feed-url" id="feedURL" readonly value="${esc(link)}" aria-label="Calendar link">
+    <div class="stack">
+      <a class="btn" href="${esc(webcal)}">Add to Calendar</a>
+      <a class="btn" href="https://calendar.google.com/calendar/render?cid=${esc(encodeURIComponent(webcal))}" target="_blank" rel="noopener">Add to Google Calendar</a>
+      <button class="btn" id="copyFeed">Copy link</button>
+    </div>
+    <p class="muted small">Anyone with this link can see your visits without signing in. If it gets out, make a new link; the old one then stops working.</p>
+    <div class="row">
+      <button class="text-btn" id="newFeed">Make a new link</button>
+      <button class="text-btn danger" id="stopFeed">Turn off</button>
+    </div>`;
+  $('#feedURL', section).addEventListener('focus', (e) => e.target.select());
+  $('#copyFeed', section).addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast('Calendar link copied');
+    } catch {
+      $('#feedURL', section).select();
+      toast('Could not copy; the link is selected');
+    }
+  });
+  $('#newFeed', section).addEventListener('click', () => change('POST', 'Make a new calendar link? Calendars subscribed to the old link stop updating.'));
+  $('#stopFeed', section).addEventListener('click', () => change('DELETE', 'Turn off the calendar link? Calendars subscribed to it stop updating.'));
 }
 
 function renderSyncSection() {
