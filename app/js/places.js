@@ -111,7 +111,16 @@ export function locate() {
 
 // Search by name: food places within roughly 30 km first; if there are none,
 // anything anywhere. Food places come before other kinds of results.
-export async function searchPlaces(query, near = lastPosition) {
+// With `anywhere` (places to try, maybe far away): one search over the whole
+// map (nothing is left out for being far), closest first.
+export async function searchPlaces(query, near = lastPosition, { anywhere = false } = {}) {
+  if (anywhere) {
+    const params = new URLSearchParams({ q: query, limit: '20' });
+    if (near) params.set('viewbox', [near.lon - 0.3, near.lat + 0.3, near.lon + 0.3, near.lat - 0.3].join(','));
+    return (await nominatim(params))
+      .map((p) => ({ ...p, distance: near ? distance(near, p) : undefined }))
+      .sort((a, b) => b.food - a.food || (a.distance ?? 0) - (b.distance ?? 0));
+  }
   let hits = [];
   if (near) {
     const d = 0.3;
@@ -127,11 +136,12 @@ export async function searchPlaces(query, near = lastPosition) {
 // Fallback when OpenStreetMap has nothing: Foursquare, through this app's own
 // server, which holds the API key. `apiBase` is where the app's API lives.
 const fallbackCache = new Map();
-export async function fallbackSearch(query, apiBase, near = lastPosition) {
-  const key = `${query.toLowerCase()}@${near ? `${near.lat.toFixed(2)},${near.lon.toFixed(2)}` : ''}`;
+export async function fallbackSearch(query, apiBase, near = lastPosition, { anywhere = false } = {}) {
+  const key = `${query.toLowerCase()}@${near ? `${near.lat.toFixed(2)},${near.lon.toFixed(2)}` : ''}${anywhere ? '*' : ''}`;
   if (fallbackCache.has(key)) return fallbackCache.get(key);
   const params = new URLSearchParams({ q: query });
   if (near) { params.set('lat', near.lat.toFixed(3)); params.set('lon', near.lon.toFixed(3)); }
+  if (anywhere) params.set('anywhere', '1');
   const res = await fetch(`${apiBase}/api/places/search?${params}`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error(`Search failed (${res.status})`);
   const places = (await res.json()).places

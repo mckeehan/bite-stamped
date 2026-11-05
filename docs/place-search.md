@@ -18,6 +18,10 @@ directly from the browser. The code is in [`app/js/places.js`](../app/js/places.
   without it (or offline), all of them are listed, most recent visit first.
 - **Search:** pressing Search looks the name up near you first (about 30 km),
   then anywhere.
+- **Places to try:** when the new restaurant is one to try (added from the
+  To Try tab, or with "I want to try this place" ticked), Search looks
+  everywhere at once: places near you only rank higher, so a restaurant in
+  another city turns up too.
 
 Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/)
 allows at most one request per second and no search-as-you-type, so the app
@@ -70,7 +74,8 @@ Without the key the fallback is off and the app never mentions Foursquare.
 - `GET /api/auth/me` answers `fallbackSearch: true` when the fallback is
   available to the signed-in user; that is how the app knows to use it.
 - The location is rounded to about 100 m before it leaves the server.
-  Foursquare searches within 50 km of it.
+  Foursquare searches within 50 km of it; for a place to try
+  (`anywhere=1`), the location only ranks the results.
 - Results are turned into the same shape as OpenStreetMap results, so
   picking one fills in the same fields (name, address, city, state, country,
   phone, website, location and cuisine from Foursquare's categories).

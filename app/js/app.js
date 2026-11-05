@@ -818,6 +818,8 @@ function setUpPlacePicker(form) {
   const list = $('#placeResults');
   const status = $('#placeStatus');
   focusSearch(input);
+  // Adding a place to try: Search looks everywhere, not just around here.
+  const anywhere = () => form.toTry.checked;
   let nearby = [];   // food places around the device
   let found = null;  // results of the last Search, for `foundFor`
   let foundFor = '';
@@ -898,7 +900,7 @@ function setUpPlacePicker(form) {
     moreButton.disabled = true;
     moreButton.textContent = 'Searching Foursquare…';
     try {
-      const results = await fallbackSearch(q, apiBase);
+      const results = await fallbackSearch(q, apiBase, undefined, { anywhere: anywhere() });
       if (input.value.trim() !== q) return;
       const before = extend ? (found ?? nearbyMatching(q)) : [];
       found = withoutDuplicates([...before, ...results]);
@@ -988,7 +990,7 @@ function setUpPlacePicker(form) {
     clearTimeout(typingTimer);
     status.textContent = 'Searching…';
     try {
-      const results = await searchPlaces(q);
+      const results = await searchPlaces(q, undefined, { anywhere: anywhere() });
       if (input.value.trim() !== q) return;
       // Nearby matches stay on top.
       const both = withoutDuplicates([...nearbyMatching(q), ...results]);

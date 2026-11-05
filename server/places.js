@@ -30,13 +30,15 @@ export function createPlaces({ apiKey, fetch: doFetch = (...a) => fetch(...a) })
     const lat = Number(url.searchParams.get('lat'));
     const lon = Number(url.searchParams.get('lon'));
     const hasPlace = url.searchParams.has('lat') && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+    // anywhere=1 (places to try): the location only ranks results, it doesn't limit them.
+    const anywhere = url.searchParams.get('anywhere') === '1';
     limit(user.email);
 
     const params = new URLSearchParams({ query: q, limit: '20' });
     if (hasPlace) {
       // Rounded to about 100 m: enough to rank what is close.
       params.set('ll', `${lat.toFixed(3)},${lon.toFixed(3)}`);
-      params.set('radius', '50000');
+      if (!anywhere) params.set('radius', '50000');
     }
     let res;
     try {

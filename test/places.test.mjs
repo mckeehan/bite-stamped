@@ -85,3 +85,14 @@ test('the key never reaches the browser', async () => {
     assert.ok(!(await (await f(path)).text()).includes('secret-test-key'), path);
   }
 });
+
+test('nearby searches stay within 50 km; anywhere=1 (places to try) only ranks by the location', async () => {
+  const fsq = fakeFoursquare();
+  const srv = testServer({ foursquareKey: 'test-key', fetch: fsq.fetch });
+  const f = await signIn(srv);
+  await f('/api/places/search?q=calhouns&lat=35.96&lon=-83.92');
+  await f('/api/places/search?q=calhouns&lat=35.96&lon=-83.92&anywhere=1');
+  assert.equal(fsq.calls[0].url.searchParams.get('radius'), '50000');
+  assert.equal(fsq.calls[1].url.searchParams.get('radius'), null);
+  assert.equal(fsq.calls[1].url.searchParams.get('ll'), '35.960,-83.920');
+});
