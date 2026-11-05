@@ -14,7 +14,7 @@ const encodePath = (path) => path.split('/').map(encodeURIComponent).join('/');
 const decode = (bytes) => new TextDecoder().decode(bytes);
 
 export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base = '', onRemoteChange = () => {}, onState = () => {} }) {
-  const state = { status: 'idle', email: null, lastSync: null, pending: 0, error: '', fallbackSearch: false };
+  const state = { status: 'idle', email: null, lastSync: null, pending: 0, error: '', fallbackSearch: false, placesDir: false };
   let running = null;
   let again = false;
 
@@ -175,9 +175,10 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
       const res = await doFetch(`${base}/api/auth/me`, { credentials: 'same-origin' });
       if (res.ok) {
         // fallbackSearch: the server offers /api/places/search to this account.
-        const { email, fallbackSearch } = await res.json();
+        // placesDir: the server takes files in places/ (2.0.0 and later).
+        const { email, fallbackSearch, placesDir } = await res.json();
         await store.setMeta('account', email);
-        set({ email, fallbackSearch: Boolean(fallbackSearch) });
+        set({ email, fallbackSearch: Boolean(fallbackSearch), placesDir: Boolean(placesDir) });
       }
     } catch {
       // offline: keep the remembered account

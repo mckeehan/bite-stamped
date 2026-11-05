@@ -1,6 +1,6 @@
 # Place search
 
-When you add a restaurant, the app helps you find it so you don't have to type
+When you add a place, the app helps you find it so you don't have to type
 the address. Everything here needs a connection; the rest of the app works
 offline.
 
@@ -9,10 +9,11 @@ offline.
 The app asks OpenStreetMap's [Nominatim](https://nominatim.org/) service
 directly from the browser. The code is in [`app/js/places.js`](../app/js/places.js).
 
-- **Nearby:** when the screen opens, it lists food places (restaurants, fast
-  food, cafés, bakeries, pubs, bars, ice cream) within about 3 km of you,
+- **Nearby:** when the screen opens, it lists places (restaurants, fast
+  food, cafés, bakeries, pubs, bars, ice cream, breweries, museums and
+  sights) within about 3 km of you,
   closest first. Typing filters this list on the device.
-- **Your journal:** restaurants you've visited ("✓ Visited") or want to try
+- **Your journal:** places you've visited ("✓ Visited") or want to try
   ("✓ On your to-try list") are in the list too, even when OpenStreetMap
   doesn't have them. Before you type: with your location, those within about
   5 miles (8 km) sort in by distance; without it (or offline), all of them,
@@ -20,9 +21,9 @@ directly from the browser. The code is in [`app/js/places.js`](../app/js/places.
   When adding a place to try, they only show once what you type matches.
 - **Search:** pressing Search looks the name up near you first (about 30 km),
   then anywhere.
-- **Places to try:** when the new restaurant is one to try (added from the
+- **Places to try:** when the new place is one to try (added from the
   To Try tab, or with "I want to try this place" ticked), Search looks
-  everywhere at once: places near you only rank higher, so a restaurant in
+  everywhere at once: places near you only rank higher, so a place in
   another city turns up too.
 
 Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/)
@@ -40,7 +41,7 @@ but only when OpenStreetMap has nothing:
   Foursquare.
 - **After Search:** if Nominatim finds nothing (or isn't reachable), the app
   asks Foursquare right away. If Nominatim finds only streets or towns by
-  that name (no restaurant), it asks Foursquare too and lists its results
+  that name (no actual place), it asks Foursquare too and lists its results
   first.
 - **Somewhere else:** Foursquare has no worldwide search; it only looks
   around a place. Add the town after a comma ("The Dillard House, Dillard

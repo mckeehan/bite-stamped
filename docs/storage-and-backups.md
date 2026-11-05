@@ -17,7 +17,7 @@ versions/<path>/<rev>    every version of every file: the history
 files/<path>             the current version of each file, as plain files
 ```
 
-`<path>` is the file's path in the journal: `restaurants/<STATE>-<city>-<name>.md`, or an
+`<path>` is the file's path in the journal: `places/<STATE>-<city>-<name>.md` (`restaurants/…` before 2.0.0), or an
 image under `media/` (see [data-format.md](data-format.md)).
 
 `files/` is a convenient read-only view for browsing the Markdown and images.
@@ -46,7 +46,7 @@ not the list of earlier ones. The history is the contents of
 
 ## Deletes
 
-Deleting a restaurant or image in the app does not delete any bytes. The
+Deleting a place or image in the app does not delete any bytes. The
 server gives the path a new revision marked `deleted`, so other devices learn
 about the deletion, and removes the `files/<path>` link. Every earlier version
 stays in `versions/<path>/`.
@@ -61,7 +61,7 @@ again (see [sync.md](sync.md)).
 ## What this protects against and what it doesn't
 
 **It protects against** mistakes made in the app or on a device: an edit
-that removes too much, a deleted restaurant, a bad import, or a device that
+that removes too much, a deleted place, a bad import, or a device that
 syncs damaged data. All earlier versions are still on the server.
 
 **It does not protect against** losing the server's disk. If the drive fails
@@ -81,7 +81,7 @@ Each device also keeps its own full copy of the journal, and
 
 ## Size
 
-Nothing is ever pruned, so `versions/` only grows. Each save of a restaurant
+Nothing is ever pruned, so `versions/` only grows. Each save of a place
 stores the whole Markdown file again; these are small. Photos make up most of
 the space, and each photo is usually stored once, since photos are rarely
 changed after they are added. Check the size with `du -sh versions`.
@@ -94,13 +94,13 @@ The app has no screen for this yet. By hand:
    name sorts them oldest first:
 
    ```bash
-   ls -l versions/restaurants/TN-knoxville-main-street-tavern.md/
+   ls -l versions/places/TN-knoxville-main-street-tavern.md/
    ```
 
 2. Look at a version; each one is the complete file:
 
    ```bash
-   cat versions/restaurants/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF
+   cat versions/places/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF
    ```
 
 3. To restore it, put it in a ZIP under its journal path and import that ZIP
@@ -109,12 +109,12 @@ The app has no screen for this yet. By hand:
    version to the server as a new revision.
 
    ```bash
-   mkdir -p restore/restaurants
-   cp versions/restaurants/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF restore/restaurants/TN-knoxville-main-street-tavern.md
-   (cd restore && zip -r ../restore.zip restaurants)
+   mkdir -p restore/places
+   cp versions/places/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF restore/places/TN-knoxville-main-street-tavern.md
+   (cd restore && zip -r ../restore.zip places)
    ```
 
-   For a deleted restaurant, restore the last version before the deletion:
+   For a deleted place, restore the last version before the deletion:
    the deletion itself has no file in `versions/`.
 
 A signed-in device can also fetch any revision through the API with

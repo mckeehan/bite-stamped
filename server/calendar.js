@@ -3,7 +3,7 @@
 // account gets a private link with a random token; signed-in users create,
 // replace or remove theirs through /api/calendar.
 
-import { fromMarkdown, RESTAURANT_DIR } from '../app/js/model.js';
+import { fromMarkdown, isPlaceFile } from '../app/js/model.js';
 import { json, readJSON, randomToken, sha256, HttpError } from './http.js';
 
 export function createCalendar({ storage, config }) {
@@ -37,7 +37,9 @@ export function createCalendar({ storage, config }) {
     const owner = /^[\w-]{20,64}$/.test(token) && storage.get('SELECT email, time_zone FROM calendar_feeds WHERE token = ?', token);
     if (!owner || !config.allowedEmails.includes(owner.email)) throw new HttpError(404, { error: 'Not found' });
     const restaurants = [];
-    for (const f of storage.all("SELECT path, rev FROM files WHERE deleted = 0 AND path LIKE 'restaurants/%.md'")) {
+    // places/, and restaurants/ from before 2.0.0 (until a device moves them).
+    for (const f of storage.all("SELECT path, rev FROM files WHERE deleted = 0 AND (path LIKE 'places/%.md' OR path LIKE 'restaurants/%.md')")) {
+      if (!isPlaceFile(f.path)) continue;
       const bytes = storage.readVersion(f.path, f.rev);
       if (!bytes) continue;
       try {
@@ -168,7 +170,7 @@ export function toICS(restaurants, { appURL = '', now = new Date(), timeZone = S
         `UID:${sha256(`${r.path}\n${v.date}\n${n}`).slice(0, 32)}@bite-stamped`,
         `DTSTAMP:${stamp(now)}`,
         ...times,
-        `SUMMARY:${text(r.name || r.path.slice(RESTAURANT_DIR.length))}`,
+        `SUMMARY:${text(r.name || r.path.replace(/^[^/]+\//, '').replace(/\.md$/, ''))}`,
         ...(where ? [`LOCATION:${text(where)}`] : []),
         ...(Number.isFinite(r.lat) && Number.isFinite(r.lon) ? [`GEO:${r.lat};${r.lon}`] : []),
         ...(details ? [`DESCRIPTION:${text(details)}`] : []),

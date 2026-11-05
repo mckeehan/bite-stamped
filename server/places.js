@@ -4,6 +4,7 @@
 // API: https://docs.foursquare.com/fsq-developers-places/reference/place-search
 
 import { json, HttpError } from './http.js';
+import { typeFromKind } from '../app/js/model.js';
 
 const ENDPOINT = 'https://places-api.foursquare.com/places/search';
 const API_VERSION = '2025-06-17';
@@ -78,7 +79,9 @@ export function toPlace(hit) {
   return {
     id: `fsq:${hit.fsq_place_id}`,
     source: 'foursquare',
+    venue: true, // every Foursquare result is a place, not a street or a town
     food: categories.some((c) => FOOD.test(c)),
+    type: typeFromKind(categories[0]),
     name: hit.name || '',
     kind: (categories[0] || '').toLowerCase(),
     address: [street, [loc.postcode, city].filter(Boolean).join(' ')].filter(Boolean).join(', '),

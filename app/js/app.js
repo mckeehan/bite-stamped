@@ -1,9 +1,9 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
+  newRestaurant, isFoodPlace, PLACE_TYPES, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
-import { searchPlaces, locate, nearbyFood, formatDistance, fallbackSearch, addressAt } from './places.js';
+import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, addressAt } from './places.js';
 import { createMap } from './map.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
@@ -19,6 +19,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const link = (path) => `#/r/${encodeURIComponent(path)}`;
+// What kind of place, in a few words for cards: the cuisine (or category), else the type.
+const kindLine = (r) => r.cuisine || r.type;
 
 function formatDate(ymd, style = 'medium') {
   if (!ymd) return '';
@@ -254,10 +256,10 @@ function renderList(tab) {
       <button type="button" class="icon-btn" id="sortBtn" aria-label="Sort">${ICONS.sort}</button>
       <h1 class="center">${title}</h1>
       <button type="button" class="icon-btn" id="viewBtn"></button>
-      <a class="icon-btn" href="#/new${tab === 'totry' ? '?totry=1' : ''}" aria-label="Add restaurant">${ICONS.add}</a>
+      <a class="icon-btn" href="#/new${tab === 'totry' ? '?totry=1' : ''}" aria-label="Add place">${ICONS.add}</a>
     </header>
     <div class="list-tools">
-      <input type="search" id="q" placeholder="Search restaurants, dishes, people…" value="${esc(listState.query)}" autocomplete="off">
+      <input type="search" id="q" placeholder="Search places, dishes, people…" value="${esc(listState.query)}" autocomplete="off">
       <p class="muted small sort-note" id="sortNote"></p>
     </div>
     <ul class="cards" id="cards"></ul>
@@ -275,7 +277,7 @@ function renderList(tab) {
 
   // One timeline entry: a visit, with its restaurant.
   const visitCard = (r, v) => {
-    const sub = [r.cuisine, placeLine(r)].filter(Boolean).join(' · ');
+    const sub = [kindLine(r), placeLine(r)].filter(Boolean).join(' · ');
     const when = [formatTime(v.date), v.people.length ? `with ${v.people.join(', ')}` : ''].filter(Boolean).join(' · ');
     return `<a class="card" href="${link(r.path)}">
       ${thumb(r)}
@@ -306,7 +308,7 @@ function renderList(tab) {
   const card = (r) => {
     const last = lastVisit(r);
     const away = sort() === 'nearest' && here && r.lat !== null ? formatDistance(distance(here, r)) : '';
-    const sub = [away, r.cuisine, placeLine(r)].filter(Boolean).join(' · ');
+    const sub = [away, kindLine(r), placeLine(r)].filter(Boolean).join(' · ');
     const when = tab === 'totry'
       ? (r.created ? `Added ${formatDate(r.created)}` : '')
       : r.visits.length ? `${r.visits.length} visit${r.visits.length > 1 ? 's' : ''} · ${formatDate(last)}` : '';
@@ -328,7 +330,7 @@ function renderList(tab) {
         listState.query ? 'Nothing matches your search.'
         : tab === 'totry' ? 'Places you want to try go here.<br><a href="#/new?totry=1">Add one</a>'
         : everything.length ? (tab === 'timeline' ? 'No visits yet.' : 'No visited places yet.')
-        : 'Your restaurant journal is empty.<br><a href="#/new">Add your first restaurant</a>'
+        : 'Your journal is empty.<br><a href="#/new">Add your first place</a>'
       }</li>`;
       return;
     }
@@ -432,7 +434,7 @@ function renderDetail(path) {
     ${cover ? `<div class="cover"><img data-file="${esc(cover)}" alt=""></div>` : ''}
     <section class="detail-head">
       <h1>${esc(r.name)}</h1>
-      ${[r.cuisine, placeLine(r)].filter(Boolean).length ? `<p class="muted">${esc([r.cuisine, placeLine(r)].filter(Boolean).join(' · '))}</p>` : ''}
+      ${[r.type, r.cuisine, placeLine(r)].filter(Boolean).length ? `<p class="muted">${esc([r.type, r.cuisine, placeLine(r)].filter(Boolean).join(' · '))}</p>` : ''}
       <div class="head-row">
         ${stars(r.rating, { input: true, size: 'large' })}
         <button type="button" class="chip${r.toTry ? ' on' : ''}" id="toTry">${r.toTry ? '★ To try' : '☆ To try'}</button>
@@ -453,7 +455,7 @@ function renderDetail(path) {
         </button></li>`).join('')}</ul>` : '<p class="muted small">No visits yet.</p>'}
     </section>
 
-    <section class="block">
+    ${isFoodPlace(r) || r.dishes.length ? `<section class="block">
       <div class="block-head"><h2>Dishes <span class="count">${r.dishes.length || ''}</span></h2><button class="text-btn" id="addDish">+ Dish</button></div>
       ${r.dishes.length ? `<ul class="rows">${r.dishes.map((m, i) => `
         <li><button class="row-btn with-thumb" data-dish="${i}">
@@ -464,7 +466,7 @@ function renderDetail(path) {
             ${m.notes ? `<small class="muted pre">${esc(m.notes)}</small>` : ''}
           </span>
         </button></li>`).join('')}</ul>` : '<p class="muted small">No dishes yet.</p>'}
-    </section>
+    </section>` : ''}
 
     <section class="block">
       <div class="block-head"><h2>Photos <span class="count">${r.photos.length || ''}</span></h2><button class="text-btn" id="addPhotos">+ Photos</button></div>
@@ -475,7 +477,7 @@ function renderDetail(path) {
         </button></li>`).join('')}</ul>` : '<p class="muted small">No photos yet.</p>'}
     </section>
 
-    <p class="danger-zone"><button class="text-btn danger" id="deleteRestaurant">Delete restaurant</button></p>`;
+    <p class="danger-zone"><button class="text-btn danger" id="deleteRestaurant">Delete place</button></p>`;
 
   hydrateImages();
 
@@ -492,7 +494,7 @@ function renderDetail(path) {
   for (const b of $$('[data-directions]', main)) b.addEventListener('click', () => openDirections(r));
   if (pendingVisit === path) { pendingVisit = null; editVisit(r, -1); }
   $$('[data-visit]').forEach((b) => b.addEventListener('click', () => editVisit(r, Number(b.dataset.visit))));
-  $('#addDish').addEventListener('click', () => editDish(r, -1));
+  $('#addDish')?.addEventListener('click', () => editDish(r, -1));
   $$('[data-dish]').forEach((b) => b.addEventListener('click', () => editDish(r, Number(b.dataset.dish))));
   $('#addPhotos').addEventListener('click', () => addPhotos(r));
   $$('[data-photo]').forEach((b) => b.addEventListener('click', () => editPhoto(r, Number(b.dataset.photo))));
@@ -693,19 +695,19 @@ function renderEdit(path, params) {
   const existing = path ? repo.get(path) : null;
   if (path && !existing) return notFound();
   const r = existing ? { ...existing } : newRestaurant({ toTry: params.get('totry') === '1' });
-  setTitle(existing ? `Edit ${r.name}` : 'New restaurant');
+  setTitle(existing ? `Edit ${r.name}` : 'New place');
   const back = existing ? link(existing.path) : r.toTry ? '#/totry' : homeOf(r);
 
   main.innerHTML = `
     <header class="bar">
       <a class="text-btn" href="${back}">Cancel</a>
-      <h1 class="center">${existing ? 'Edit' : 'New restaurant'}</h1>
+      <h1 class="center">${existing ? 'Edit' : 'New place'}</h1>
       <button class="text-btn strong" form="editForm" id="saveBtn"${existing ? '' : ' hidden'}>Save</button>
     </header>
     ${existing ? '' : `
     <section class="place-picker" id="placePicker">
       <form class="search-row" id="placeSearch" role="search">
-        <input type="search" id="placeQuery" placeholder="Search for restaurant" autocomplete="off" enterkeyhint="search" aria-label="Search for restaurant">
+        <input type="search" id="placeQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
       </form>
       <p class="muted small picker-status" id="placeStatus"></p>
       <ul class="place-list" id="placeResults"></ul>
@@ -718,7 +720,9 @@ function renderEdit(path, params) {
       <div class="field"><span>Rating</span>${stars(r.rating, { input: true, size: 'large' })}</div>
       <label class="check"><input type="checkbox" name="toTry"${r.toTry ? ' checked' : ''}> I want to try this place</label>
       ${existing ? '' : `<p class="muted small visit-note" id="visitNote"${r.toTry ? ' hidden' : ''}>Saving also adds a visit for ${esc(formatDateTime(now()))}.</p>`}
-      <label>Cuisine <input name="cuisine" value="${esc(r.cuisine)}" placeholder="e.g. Thai, Pizza" autocomplete="off"></label>
+      <label>Type <input name="type" value="${esc(r.type)}" list="typeList" placeholder="e.g. Restaurant, Bar, Museum" autocomplete="off"></label>
+      <datalist id="typeList">${[...new Set([...PLACE_TYPES, ...repo.all().map((x) => x.type).filter(Boolean)])].map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
+      <label><span id="cuisineLabel">${isFoodPlace(r) ? 'Cuisine' : 'Category'}</span> <input name="cuisine" value="${esc(r.cuisine)}" placeholder="${isFoodPlace(r) ? 'e.g. Thai, Pizza' : 'e.g. Art, History'}" autocomplete="off"></label>
       <label>Address <input name="address" value="${esc(r.address)}" autocomplete="off"></label>
       ${existing ? '' : '<p class="muted small" id="addressNote" role="status" hidden></p>'}
       <div class="two">
@@ -737,8 +741,16 @@ function renderEdit(path, params) {
 
   const form = $('#editForm');
 
+  // "Cuisine" for places to eat and drink, "Category" for the rest.
+  const labelCuisine = () => {
+    const food = isFoodPlace({ type: form.type.value.trim() });
+    $('#cuisineLabel').textContent = food ? 'Cuisine' : 'Category';
+    form.cuisine.placeholder = food ? 'e.g. Thai, Pizza' : 'e.g. Art, History';
+  };
+  form.type.addEventListener('input', labelCuisine);
+
   if (!existing) {
-    setUpPlacePicker(form);
+    setUpPlacePicker(form, labelCuisine);
     form.toTry.addEventListener('change', () => { $('#visitNote').hidden = form.toTry.checked; });
   }
 
@@ -749,6 +761,7 @@ function renderEdit(path, params) {
       name: f.name.value.trim(),
       rating: starValue(form),
       toTry: f.toTry.checked,
+      type: f.type.value.trim(),
       cuisine: f.cuisine.value.trim(),
       address: f.address.value.trim(),
       city: f.city.value.trim(),
@@ -811,7 +824,7 @@ function focusSearch(input) {
   keyboardBridge = null;
 }
 
-function setUpPlacePicker(form) {
+function setUpPlacePicker(form, onFill = () => {}) {
   const journal = repo.all();
   const picker = $('#placePicker');
   const input = $('#placeQuery');
@@ -820,8 +833,8 @@ function setUpPlacePicker(form) {
   focusSearch(input);
   // Adding a place to try: Search looks everywhere, not just around here.
   const anywhere = () => form.toTry.checked;
-  if (anywhere()) input.placeholder = 'Restaurant name, town';
-  let nearby = [];   // food places around the device
+  if (anywhere()) input.placeholder = 'Name, town';
+  let nearby = [];   // places around the device
   let found = null;  // results of the last Search, for `foundFor`
   let foundFor = '';
   let shown = [];
@@ -849,7 +862,8 @@ function setUpPlacePicker(form) {
   const saved = journal.filter((r) => r.visits.length || r.toTry).map((r) => ({
     id: `journal:${r.path}`,
     name: r.name,
-    kind: '',
+    kind: r.type,
+    type: r.type,
     cuisine: r.cuisine,
     address: [r.address, r.city, r.state].filter(Boolean).join(', '),
     street: r.address,
@@ -913,7 +927,7 @@ function setUpPlacePicker(form) {
       if (input.value.trim() !== q) return;
       const before = extend ? (found ?? nearbyMatching(q)) : [];
       // Restaurants from Foursquare go above results that are only streets or towns.
-      const first = !before.some((p) => p.food || p.mine);
+      const first = !before.some((p) => p.venue || p.mine);
       found = withoutDuplicates(first ? [...results, ...before] : [...before, ...results]);
       foundFor = q;
       foursquareFor = q;
@@ -974,7 +988,7 @@ function setUpPlacePicker(form) {
 
   const findNearby = async () => {
     if (!navigator.onLine) { nearbyNote = 'You are offline. Add a custom location below.'; return render(); }
-    nearbyNote = 'Finding food places near you…';
+    nearbyNote = 'Finding places near you…';
     render();
     const here = await locate();
     position = here;
@@ -985,8 +999,8 @@ function setUpPlacePicker(form) {
       return render();
     }
     try {
-      nearby = withoutDuplicates(await nearbyFood(here, (sofar) => { nearby = withoutDuplicates(sofar); nearbyNote = ''; render(); }));
-      nearbyNote = nearby.length ? '' : 'No food places found nearby. Search by name instead.';
+      nearby = withoutDuplicates(await nearbyPlaces(here, (sofar) => { nearby = withoutDuplicates(sofar); nearbyNote = ''; render(); }));
+      nearbyNote = nearby.length ? '' : 'No places found nearby. Search by name instead.';
     } catch {
       nearbyNote = 'Places nearby are not available right now. Search by name instead.';
     }
@@ -1012,7 +1026,7 @@ function setUpPlacePicker(form) {
       foursquareFor = '';
       render();
       // Only streets or towns by that name: ask Foursquare for the restaurant too.
-      if (!both.some((p) => p.food || p.mine) && fallbackReady(q)) runFallback(q, { extend: true });
+      if (!both.some((p) => p.venue || p.mine) && fallbackReady(q)) runFallback(q, { extend: true });
     } catch {
       if (fallbackReady(q)) return runFallback(q);
       status.textContent = 'Search is not available right now.';
@@ -1041,10 +1055,11 @@ function setUpPlacePicker(form) {
   });
 
   const useNewPlace = (p) => {
-    for (const key of ['name', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) {
+    for (const key of ['name', 'type', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) {
       const value = key === 'address' && p.street !== undefined ? p.street : p[key];
       form[key].value = value === undefined || value === null || Number.isNaN(value) ? '' : value;
     }
+    onFill();
     showForm();
     if (!p.street && Number.isFinite(p.lat) && Number.isFinite(p.lon)) fillAddress(p);
   };
@@ -1083,7 +1098,7 @@ function setUpPlacePicker(form) {
         <h2>Already in your journal</h2>
         <p>${message}</p>
         <button type="button" class="btn primary" id="dupVisit">Add visit to ${esc(r.name)}</button>
-        <button type="button" class="btn" id="dupNew">Create new restaurant</button>
+        <button type="button" class="btn" id="dupNew">Create new place</button>
         <button type="button" class="btn" data-close>Cancel</button>
       </div>`, (dlg) => {
       $('#dupVisit', dlg).addEventListener('click', () => {
@@ -1098,7 +1113,8 @@ function setUpPlacePicker(form) {
   };
 
   $('#customPlace').addEventListener('click', () => {
-    for (const key of ['cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) form[key].value = '';
+    for (const key of ['type', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) form[key].value = '';
+    onFill();
     form.name.value = input.value.trim();
     showForm();
     form.name.focus();
@@ -1143,7 +1159,7 @@ async function renderSettings() {
     </header>
     <section class="block">
       <h2>Your data</h2>
-      <p>${all.length} restaurants, ${visits} visits, ${photos} images · ${formatBytes(est.usage)} used on this device.</p>
+      <p>${all.length} places, ${visits} visits, ${photos} images · ${formatBytes(est.usage)} used on this device.</p>
       <p class="muted small">${est.persisted
         ? 'Storage is marked as persistent, so the browser will not clear it to free space.'
         : 'The browser may clear this data if the device runs low on space. Add the app to your Home Screen and export a backup now and then.'}</p>
@@ -1153,7 +1169,7 @@ async function renderSettings() {
     <section class="block" id="calendarSection" hidden></section>
     <section class="block">
       <h2>Backup and files</h2>
-      <p class="muted small">Export saves everything as a ZIP: one Markdown file with a YAML header per restaurant, plus the images. Edit the files anywhere and import them again; files with the same name are replaced.</p>
+      <p class="muted small">Export saves everything as a ZIP: one Markdown file with a YAML header per place, plus the images. Edit the files anywhere and import them again; files with the same name are replaced.</p>
       <div class="stack">
         <button class="btn" id="export">Export ZIP</button>
         <label class="btn file-btn">Import ZIP<input type="file" id="import" accept=".zip,application/zip"></label>
@@ -1161,12 +1177,12 @@ async function renderSettings() {
     </section>
     <section class="block">
       <h2>Place search and maps</h2>
-      <p class="muted small">When you add a restaurant, your rough location (if you allow it) goes to OpenStreetMap’s Nominatim service to list food places nearby, and so does any text you search for. The map view loads its map images from OpenStreetMap, which shows them the area you look at. Sorting by “Nearest” uses your location on this device only.</p>
+      <p class="muted small">When you add a place, your rough location (if you allow it) goes to OpenStreetMap’s Nominatim service to list places nearby, and so does any text you search for. The map view loads its map images from OpenStreetMap, which shows them the area you look at. Sorting by “Nearest” uses your location on this device only.</p>
       <p class="muted small" id="fallbackNote"${sync.state.fallbackSearch ? '' : ' hidden'}>When OpenStreetMap has nothing for what you typed, the search text and your rough location (to about 100 m) go through this app’s server to Foursquare, which searches its own list of places.</p>
     </section>
     <section class="block">
       <h2>Start over</h2>
-      <p class="muted small">Removes all restaurants and photos from this device only. When you are signed in, they download again from the server; nothing is deleted there.</p>
+      <p class="muted small">Removes all places and photos from this device only. When you are signed in, they download again from the server; nothing is deleted there.</p>
       <button class="text-btn danger" id="wipe">Remove all data from this device</button>
     </section>
     <p class="muted small app-version">${esc(releaseLine())}</p>`;
@@ -1195,7 +1211,7 @@ async function renderSettings() {
     if (!file) return;
     try {
       const n = await repo.importZip(file);
-      toast(`Imported ${n} restaurant${n === 1 ? '' : 's'}`);
+      toast(`Imported ${n} place${n === 1 ? '' : 's'}`);
       renderSettings();
     } catch (err) {
       alert(`Could not import: ${err.message}`);
@@ -1203,8 +1219,8 @@ async function renderSettings() {
   });
   $('#wipe').addEventListener('click', async () => {
     const warning = sync.state.email
-      ? 'This removes every restaurant and photo from this device; they download again from the server. Changes not yet synced are lost. Type REMOVE to confirm.'
-      : 'You are not signed in to sync, so this deletes every restaurant and photo for good. Type REMOVE to confirm.';
+      ? 'This removes every place and photo from this device; they download again from the server. Changes not yet synced are lost. Type REMOVE to confirm.'
+      : 'You are not signed in to sync, so this deletes every place and photo for good. Type REMOVE to confirm.';
     if (prompt(warning) !== 'REMOVE') return;
     await repo.deleteEverything();
     toast('Removed from this device');
@@ -1405,7 +1421,7 @@ setInterval(() => { if (document.visibilityState === 'visible') sync.sync(); }, 
 
 function notFound() {
   main.innerHTML = `<header class="bar"><a class="icon-btn" href="#/" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a></header>
-    <p class="empty">This restaurant does not exist (any more).</p>`;
+    <p class="empty">This place does not exist (any more).</p>`;
 }
 
 // --- router ---
@@ -1506,7 +1522,9 @@ window.addEventListener('hashchange', () => {
   // their new names, after the server's changes are in, so a device that
   // comes second finds them renamed already.
   try { await sync.sync(); } catch {}
-  const moved = await repo.renameAll();
+  // Not before the server takes files in places/ (a server older than 2.0.0
+  // would get the deletions of the old files but refuse the new ones).
+  const moved = !sync.state.email || sync.state.placesDir ? await repo.renameAll() : new Map();
   if (moved.size) {
     const [, screen, path] = location.hash.match(/^#\/(r|edit)\/([^?]+)/) || [];
     const next = path && moved.get(decodeURIComponent(path));

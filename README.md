@@ -1,6 +1,7 @@
-# Bite-Stamped – restaurant journal
+# Bite-Stamped – a journal of places
 
-A private restaurant journal that runs in the browser, installs on a phone's
+A private journal of the places you go – restaurants, bars, breweries,
+museums, sights, anything – that runs in the browser, installs on a phone's
 Home Screen and works offline. Signed-in devices sync with each other through
 a small server you host yourself, which also keeps every version of every file
 as a backup. Plain HTML, CSS and JavaScript plus Node.js: no frameworks, no
@@ -8,14 +9,14 @@ build step, no dependencies at all.
 
 ## Features
 
-- Restaurants with rating, "to try" flag, cuisine, address, website, phone, tags
-  and Markdown notes
+- Places of any type (restaurant, bar, museum, park…) with rating, "to try"
+  flag, cuisine or category, address, website, phone, tags and Markdown notes
 - Visits with date, rating, people and notes
-- Dishes with rating, price, notes and an image
+- Dishes with rating, price, notes and an image (for places to eat and drink)
 - Photos with a title and date; any photo can be the cover
 - A "Timeline" of every visit by day, plus "Visited" and "To Try" lists, sorted by name, last visit, rating, visits, date
   added or distance, or shown on a map (OpenStreetMap)
-- Adding a place lists food places nearby and [searches by name](docs/place-search.md)
+- Adding a place lists places nearby (food and drink, museums, sights) and [searches by name](docs/place-search.md)
   through OpenStreetMap, with Foursquare as an optional fallback (online only,
   like the map images; everything else works offline)
 - Offline-first [sync](docs/sync.md) between devices, after signing in with an

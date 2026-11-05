@@ -1,11 +1,16 @@
-// A restaurant is one Markdown file, `restaurants/<slug>.md`. Its YAML header
-// holds the details, visits, dishes and photos; the body holds free notes.
-// Images live in `media/<slug>/`, referenced by path from the header.
+// A place (restaurant, bar, museum… any venue) is one Markdown file,
+// `places/<STATE>-<city>-<name>.md`. Its YAML header holds the details, visits,
+// dishes and photos; the body holds free notes. Images live in
+// `media/<name>/`, referenced by path from the header. Before 2.0.0 the files
+// were in `restaurants/`; the app moves them (repo.js: renameAll).
+// (Code still says "restaurant" for a place in many names, often `r`.)
 // Pure functions only (no browser APIs), so they run under `node --test`.
 
 import { parseFrontMatter, stringifyFrontMatter } from './yaml.js';
 
-export const RESTAURANT_DIR = 'restaurants/';
+export const PLACE_DIR = 'places/';
+export const LEGACY_DIR = 'restaurants/';
+export const isPlaceFile = (path) => (path.startsWith(PLACE_DIR) || path.startsWith(LEGACY_DIR)) && path.endsWith('.md');
 export const MEDIA_DIR = 'media/';
 
 const str = (v) => (v === null || v === undefined ? '' : String(v));
@@ -17,7 +22,7 @@ const rating = (v) => {
 };
 
 // --- file names ---
-// restaurants/<STATE>-<city>-<name>.md, e.g. restaurants/TN-newport-debbie-s-drive-inn.md:
+// places/<STATE>-<city>-<name>.md, e.g. places/TN-newport-debbie-s-drive-inn.md:
 // the state as its upper-case two-letter abbreviation, city and name in lower
 // case with every run of other characters than a-z and 0-9 replaced by "-".
 // Parts that are empty are left out; another restaurant with the same name
@@ -55,14 +60,14 @@ export function stateCode(state) {
 }
 
 export function fileBase(r) {
-  return [stateCode(r.state), fileWord(r.city), fileWord(r.name)].filter(Boolean).join('-') || 'restaurant';
+  return [stateCode(r.state), fileWord(r.city), fileWord(r.name)].filter(Boolean).join('-') || 'place';
 }
 
-// The path a restaurant should have: its current one if that already follows
-// the pattern, otherwise a free one. Paths count as taken regardless of case
+// The path a place should have: its current one if that already follows
+// the pattern (in places/), otherwise a free one. Paths count as taken regardless of case
 // (the server may keep files on a disk that ignores case).
-export function restaurantPath(r, takenPaths) {
-  const base = `${RESTAURANT_DIR}${fileBase(r)}`;
+export function placePath(r, takenPaths) {
+  const base = `${PLACE_DIR}${fileBase(r)}`;
   const own = r.path || '';
   if (own === `${base}.md` || (own.startsWith(`${base}-`) && /^-\d+\.md$/.test(own.slice(base.length)))) return own;
   const taken = new Set([...takenPaths].filter((p) => p !== own).map((p) => p.toLowerCase()));
@@ -72,7 +77,7 @@ export function restaurantPath(r, takenPaths) {
 }
 
 export function slugOf(path) {
-  return path.slice(RESTAURANT_DIR.length).replace(/\.md$/, '');
+  return path.replace(/^[^/]+\//, '').replace(/\.md$/, '');
 }
 
 export function mediaDir(path) {
@@ -90,6 +95,29 @@ export function now() {
   return `${today()}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// Kinds of places offered when adding or editing one (any other text works too).
+export const PLACE_TYPES = ['Restaurant', 'Fast food', 'Café', 'Bakery', 'Ice cream', 'Bar', 'Pub', 'Brewery', 'Winery',
+  'Museum', 'Attraction', 'Park', 'Shop', 'Hotel', 'Other'];
+
+// Places where eating or drinking is the point: they have dishes and a cuisine.
+// No type counts as food (journals from before 2.0.0 had only restaurants).
+const FOOD_TYPES = /restaurant|food|caf[eé]|coffee|bakery|ice cream|bar\b|pub|brew|winery|diner|deli|bistro|grill|pizz|kitchen|eatery|tea|dessert|bbq|joint|steak|burger|taco|sushi|noodle|ramen|food truck/i;
+export function isFoodPlace(r) {
+  return !r.type || FOOD_TYPES.test(r.type);
+}
+
+// "fast_food" (OpenStreetMap) or "bbq joint" → a type such as "Fast food".
+export function typeFromKind(kind) {
+  const k = str(kind).replace(/_/g, ' ').trim().toLowerCase();
+  if (!k) return '';
+  const known = { cafe: 'Café', 'ice cream': 'Ice cream', 'fast food': 'Fast food', biergarten: 'Bar', 'food court': 'Fast food', theme_park: 'Attraction' };
+  if (known[k]) return known[k];
+  const listed = PLACE_TYPES.find((t) => t.toLowerCase() === k);
+  if (listed) return listed;
+  if (/restaurant|joint|diner|bistro|grill|steakhouse|pizzeria|eatery|kitchen/.test(k)) return 'Restaurant';
+  return k[0].toUpperCase() + k.slice(1);
+}
+
 export function newRestaurant(fields = {}) {
   return normalize({ created: new Date().toISOString(), ...fields });
 }
@@ -100,6 +128,7 @@ export function normalize(d) {
     name: str(d.name),
     rating: rating(d.rating),
     toTry: d.toTry === true || d.toTry === 'true',
+    type: str(d.type),
     cuisine: str(d.cuisine),
     address: str(d.address),
     city: str(d.city),
@@ -145,6 +174,7 @@ export function toMarkdown(r) {
     name: r.name,
     rating: r.rating || null,
     toTry: r.toTry || null,
+    type: r.type,
     cuisine: r.cuisine,
     address: r.address,
     city: r.city,
@@ -209,7 +239,7 @@ export function matches(r, query) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   const hay = [
-    r.name, r.cuisine, r.city, r.state, r.country, r.address, r.notes, ...r.tags,
+    r.name, r.type, r.cuisine, r.city, r.state, r.country, r.address, r.notes, ...r.tags,
     ...r.dishes.map((m) => m.name),
     ...r.visits.flatMap((v) => [...v.people, v.notes]),
     ...r.photos.map((p) => p.title),
@@ -273,7 +303,7 @@ function unionBy(local, remote, key, combine = (l) => l) {
 // (An item deleted on one side but kept on the other comes back.)
 export function mergeRestaurants(local, remote) {
   const r = { ...local };
-  for (const key of ['name', 'rating', 'cuisine', 'address', 'city', 'state', 'country', 'countryCode', 'lat', 'lon', 'website', 'phone', 'googlePlaceId']) {
+  for (const key of ['name', 'rating', 'type', 'cuisine', 'address', 'city', 'state', 'country', 'countryCode', 'lat', 'lon', 'website', 'phone', 'googlePlaceId']) {
     if (!filled(r[key]) && filled(remote[key])) r[key] = remote[key];
   }
   r.created = [local.created, remote.created].filter(Boolean).sort()[0] || '';

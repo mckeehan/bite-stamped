@@ -1,9 +1,9 @@
 // Place search through OpenStreetMap's Nominatim (free, no key), only while
-// online and only on the "new restaurant" screen; everything else is local.
+// online and only on the "new place" screen; everything else is local.
 // Usage policy (at most one request per second, no search-as-you-type):
 // https://operations.osmfoundation.org/policies/nominatim/
 
-import { distance, nameMatches } from './model.js';
+import { distance, nameMatches, typeFromKind } from './model.js';
 
 const SERVER = 'https://nominatim.openstreetmap.org';
 
@@ -52,14 +52,16 @@ function addressParts(a) {
   };
 }
 
-// Kinds of food places, most common first: the list fills in as each arrives.
+// Kinds of places listed nearby, most common first: the list fills in as each
+// arrives. Food and drink, and things to see.
 const FOOD = ['amenity=restaurant', 'amenity=fast_food', 'amenity=cafe', 'shop=bakery', 'amenity=pub', 'amenity=bar', 'amenity=ice_cream'];
+const NEARBY = [...FOOD, 'craft=brewery', 'tourism=museum', 'tourism=attraction'];
 
 let nearbyCache = null;
 
-// Named food businesses within about 3 km of `near`, closest first.
+// Named places of those kinds within about 3 km of `near`, closest first.
 // `onUpdate` gets the list so far after each kind of place.
-export async function nearbyFood(near, onUpdate = () => {}) {
+export async function nearbyPlaces(near, onUpdate = () => {}) {
   const key = `${near.lat.toFixed(3)},${near.lon.toFixed(3)}`;
   if (nearbyCache?.key === key && Date.now() - nearbyCache.time < 10 * 60_000) return nearbyCache.places;
   const d = 0.03;
@@ -67,7 +69,7 @@ export async function nearbyFood(near, onUpdate = () => {}) {
   const byId = new Map();
   let places = [];
   let failures = 0;
-  for (const tag of FOOD) {
+  for (const tag of NEARBY) {
     try {
       const hits = await nominatim(new URLSearchParams({ q: `[${tag}]`, viewbox, bounded: '1', limit: '40' }));
       for (const hit of hits) byId.set(hit.id, { ...hit, distance: distance(near, hit) });
@@ -78,7 +80,7 @@ export async function nearbyFood(near, onUpdate = () => {}) {
     places = [...byId.values()].sort((a, b) => a.distance - b.distance);
     onUpdate(places);
   }
-  if (failures === FOOD.length) throw new Error('Nearby search failed');
+  if (failures === NEARBY.length) throw new Error('Nearby search failed');
   if (!failures) nearbyCache = { key, time: Date.now(), places };
   return places;
 }
@@ -109,8 +111,8 @@ export function locate() {
   });
 }
 
-// Search by name: food places within roughly 30 km first; if there are none,
-// anything anywhere. Food places come before other kinds of results.
+// Search by name: within roughly 30 km first; if there is nothing, anywhere.
+// Places (businesses, sights…) come before streets and towns.
 // With `anywhere` (places to try, maybe far away): one search over the whole
 // map (nothing is left out for being far), closest first.
 export async function searchPlaces(query, near = lastPosition, { anywhere = false } = {}) {
@@ -119,7 +121,7 @@ export async function searchPlaces(query, near = lastPosition, { anywhere = fals
     if (near) params.set('viewbox', [near.lon - 0.3, near.lat + 0.3, near.lon + 0.3, near.lat - 0.3].join(','));
     return (await nominatim(params))
       .map((p) => ({ ...p, distance: near ? distance(near, p) : undefined }))
-      .sort((a, b) => b.food - a.food || (a.distance ?? 0) - (b.distance ?? 0));
+      .sort((a, b) => b.venue - a.venue || (a.distance ?? 0) - (b.distance ?? 0));
   }
   let hits = [];
   if (near) {
@@ -130,7 +132,7 @@ export async function searchPlaces(query, near = lastPosition, { anywhere = fals
   if (!hits.length) hits = await nominatim(new URLSearchParams({ q: query, limit: '10' }));
   return hits
     .map((p) => ({ ...p, distance: near ? distance(near, p) : undefined }))
-    .sort((a, b) => b.food - a.food || (a.distance ?? 0) - (b.distance ?? 0));
+    .sort((a, b) => b.venue - a.venue || (a.distance ?? 0) - (b.distance ?? 0));
 }
 
 // Fallback when OpenStreetMap has nothing: Foursquare, through this app's own
@@ -154,19 +156,23 @@ export async function fallbackSearch(query, apiBase, near = lastPosition, { anyw
   const places = (await res.json()).places
     .filter((p) => nameMatches(params.get('q'), p.name))
     .map((p) => ({ ...p, distance: near ? distance(near, p) : undefined }))
-    .sort((a, b) => b.food - a.food || (a.distance ?? 0) - (b.distance ?? 0));
+    .sort((a, b) => b.venue - a.venue || (a.distance ?? 0) - (b.distance ?? 0));
   fallbackCache.set(key, places);
   return places;
 }
 
 const FOOD_TYPES = new Set(FOOD.map((t) => t.split('=')[1]).concat(['food_court', 'biergarten', 'pastry', 'deli', 'confectionery', 'coffee']));
+// OpenStreetMap categories of places one visits (not roads, towns or rivers).
+const VENUE_CATEGORIES = new Set(['amenity', 'shop', 'tourism', 'leisure', 'craft', 'historic', 'club']);
 
 function toPlace(hit) {
   const t = hit.extratags || {};
   const { street, city, state, country, countryCode, postcode } = addressParts(hit.address || {});
   return {
     id: `${hit.osm_type}${hit.osm_id}`,
+    venue: VENUE_CATEGORIES.has(hit.category),
     food: FOOD_TYPES.has(hit.type) && ['amenity', 'shop'].includes(hit.category),
+    type: VENUE_CATEGORIES.has(hit.category) ? typeFromKind(hit.type) : '',
     name: hit.name || hit.display_name.split(',')[0],
     kind: (hit.type || '').replace(/_/g, ' '),
     address: [street, [postcode, city].filter(Boolean).join(' ')].filter(Boolean).join(', '),

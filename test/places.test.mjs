@@ -67,7 +67,7 @@ test('with a key: signed-in only, sends the key, rounds the location, maps resul
 
   assert.equal(places.length, 1); // the hit without coordinates is dropped
   assert.deepEqual(places[0], {
-    id: 'fsq:abc123', source: 'foursquare', food: true, name: 'Calhoun’s on the River', kind: 'bbq joint',
+    id: 'fsq:abc123', source: 'foursquare', venue: true, food: true, type: 'Restaurant', name: 'Calhoun’s on the River', kind: 'bbq joint',
     address: '400 Neyland Dr, 37902 Knoxville', street: '400 Neyland Dr', city: 'Knoxville', state: 'TN',
     country: 'US', countryCode: 'US', lat: 35.9606, lon: -83.9207, website: 'https://example.com/calhouns',
     phone: '(865) 673-3355', cuisine: 'BBQ, American', display: '400 Neyland Dr, Knoxville, TN 37902',

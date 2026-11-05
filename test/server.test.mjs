@@ -49,7 +49,7 @@ test('sign-in sets an HttpOnly cookie that opens the API', async () => {
   const res = await post(f, '/api/auth/verify', { email: 'me@example.com', code: srv.codes.get('me@example.com') });
   assert.match(res.headers.get('Set-Cookie'), /HttpOnly; SameSite=Strict.*Secure/);
   assert.equal((await f('/api/changes')).status, 200);
-  assert.deepEqual(await (await f('/api/auth/me')).json(), { email: 'me@example.com', fallbackSearch: false });
+  assert.deepEqual(await (await f('/api/auth/me')).json(), { email: 'me@example.com', fallbackSearch: false, placesDir: true });
 
   await post(f, '/api/auth/logout', {});
   assert.equal((await f('/api/changes')).status, 401);
@@ -160,7 +160,8 @@ test('data survives a restart', async () => {
 });
 
 test('paths are limited to the app folders', () => {
-  assert.ok(validPath('restaurants/a.md'));
+  assert.ok(validPath('places/TN-newport-a.md'));
+  assert.ok(validPath('restaurants/a.md'), 'before 2.0.0');
   assert.ok(validPath('media/a/b.jpg'));
   for (const bad of ['secrets.txt', 'restaurants/../x', 'media//x', 'restaurants/a\\b', '/restaurants/a.md', 'media/a/x.tmp']) {
     assert.ok(!validPath(bad), bad);

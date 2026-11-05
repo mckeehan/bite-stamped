@@ -1,8 +1,8 @@
-// Loads all restaurant files into memory and writes changes back to the
+// Loads all place files into memory and writes changes back to the
 // file store. Also owns image object URLs and ZIP export/import.
 
 import * as store from './store.js';
-import { fromMarkdown, toMarkdown, restaurantPath, mediaDir, imagesOf, RESTAURANT_DIR, MEDIA_DIR } from './model.js';
+import { fromMarkdown, toMarkdown, placePath, fileBase, mediaDir, imagesOf, isPlaceFile, PLACE_DIR, LEGACY_DIR, MEDIA_DIR } from './model.js';
 import { createZip, readZip } from './zip.js';
 import { shrinkImage } from './images.js';
 
@@ -11,8 +11,9 @@ const imageURLs = new Map(); // file path → object URL
 
 export async function loadAll() {
   restaurants.clear();
-  for (const rec of await store.listFiles(RESTAURANT_DIR)) {
-    if (!rec.path.endsWith('.md')) continue;
+  // places/, and restaurants/ from before 2.0.0 until renameAll moves them.
+  for (const rec of await store.listFiles()) {
+    if (!isPlaceFile(rec.path)) continue;
     try {
       restaurants.set(rec.path, fromMarkdown(rec.path, new TextDecoder().decode(rec.bytes)));
     } catch (e) {
@@ -39,13 +40,13 @@ export function knownTags() {
   return [...new Set(all().flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b));
 }
 
-// Saves a restaurant; a new one gets its file name (model.js: restaurantPath).
+// Saves a place; a new one gets its file name (model.js: placePath).
 // With `rename` (after editing name, city or state), an existing one moves to
 // the name that now fits; its images stay where they are, since the file
 // refers to them by path. Returns the restaurant, with its path.
 export async function save(r, { rename = false } = {}) {
   const old = r.path;
-  if (!old || rename) r.path = restaurantPath(r, restaurants.keys());
+  if (!old || rename) r.path = placePath(r, restaurants.keys());
   r.updated = new Date().toISOString();
   await store.writeFile(r.path, toMarkdown(r));
   if (old && old !== r.path) {
@@ -56,8 +57,10 @@ export async function save(r, { rename = false } = {}) {
   return r;
 }
 
-// Gives every restaurant whose file name doesn't follow the pattern yet the
-// name that does (once, after the naming changed). Returns old → new paths.
+// Gives every place whose file name doesn't follow the pattern yet the name
+// that does, in places/ (once, after the naming changed, and for files from
+// devices still on an older version). Files moved from restaurants/ get the
+// type "Restaurant" when they have none. Returns old → new paths.
 // Two devices doing this at the same time end up with the same names (the
 // same rule, in the same order), so sync sees the same files.
 export async function renameAll() {
@@ -66,10 +69,10 @@ export async function renameAll() {
   // the name without a number.
   const key = (r) => r.path.replace(/\.md$/, '');
   for (const r of [...restaurants.values()].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0))) {
-    const path = restaurantPath(r, restaurants.keys());
+    const path = placePath(r, restaurants.keys());
     if (path === r.path) continue;
     const old = r.path;
-    const next = { ...r, path };
+    const next = { ...r, path, type: r.type || (old.startsWith(LEGACY_DIR) ? 'Restaurant' : '') };
     await store.writeFile(path, toMarkdown(next));
     await store.deleteFile(old);
     restaurants.delete(old);
@@ -131,20 +134,35 @@ export async function exportZip() {
 // Accepts archives whose files sit inside one top folder (as Finder makes them).
 export async function importZip(blob) {
   const entries = await readZip(blob);
-  const known = [RESTAURANT_DIR, MEDIA_DIR];
+  const known = [PLACE_DIR, LEGACY_DIR, MEDIA_DIR];
   const top = entries.every((e) => known.some((k) => e.path.startsWith(k)) || e.path === 'README.md')
     ? ''
     : commonTopFolder(entries);
   let count = 0;
+  const legacyTargets = new Set();
   for (const e of entries) {
-    const path = e.path.slice(top.length);
+    let path = e.path.slice(top.length);
     if (!known.some((k) => path.startsWith(k))) continue;
+    // An export from before 2.0.0 (restaurants/<name>.md): it replaces the
+    // place it was, which is now at places/<STATE>-<city>-<name>.md.
+    if (path.startsWith(LEGACY_DIR) && path.endsWith('.md')) path = legacyTarget(path, e.bytes, legacyTargets);
     forgetImage(path);
     await store.writeFile(path, e.bytes, store.guessType(path));
-    if (path.startsWith(RESTAURANT_DIR) && path.endsWith('.md')) count++;
+    if (isPlaceFile(path)) count++;
   }
   await loadAll();
+  await renameAll(); // anything else not named by the pattern yet
   return count;
+}
+
+function legacyTarget(path, bytes, taken) {
+  let r;
+  try { r = fromMarkdown(path, new TextDecoder().decode(bytes)); } catch { return path; }
+  const base = `${PLACE_DIR}${fileBase(r)}`;
+  let target = `${base}.md`;
+  for (let n = 2; taken.has(target.toLowerCase()); n++) target = `${base}-${n}.md`;
+  taken.add(target.toLowerCase());
+  return target;
 }
 
 function commonTopFolder(entries) {
@@ -170,9 +188,9 @@ export async function requestPersistence() {
 
 const README = `# Restaurant journal export
 
-Each restaurant is one Markdown file in \`restaurants/\`. The YAML header holds
-its details, visits, dishes and photos; the text below the header is your notes.
-Images are in \`media/<restaurant>/\` and are referenced by path from the header.
+Each place is one Markdown file in \`places/\`. The YAML header holds its
+details, visits, dishes and photos; the text below the header is your notes.
+Images are in \`media/<place>/\` and are referenced by path from the header.
 
 You can edit these files with any text editor (or Obsidian) and import the ZIP
 again: files with the same path are replaced, everything else is kept.

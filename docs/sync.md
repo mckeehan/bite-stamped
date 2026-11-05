@@ -8,7 +8,7 @@
   changes (`PUT` with `If-Match`), then asks the server for everything that
   changed since its last sync (a change counter).
 - If a file changed elsewhere first, the server answers 409 and the device
-  merges both versions of the restaurant (visits, dishes, photos and tags are
+  merges both versions of the place (visits, dishes, photos and tags are
   combined; single values keep this device's edit) and uploads the merge. An
   edit wins over a deletion.
 - Each server's data has a random id. If a device meets a different one (a new

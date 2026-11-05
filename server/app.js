@@ -89,7 +89,8 @@ export function createApp(config) {
     const user = auth.currentUser(request);
     if (pathname === '/api/auth/me' && method === 'GET') {
       // fallbackSearch: whether /api/places/search is there for this user.
-      return json({ email: user?.email ?? null, fallbackSearch: Boolean(user && places.enabled) });
+      // placesDir: this server takes files in places/ (2.0.0 and later).
+      return json({ email: user?.email ?? null, fallbackSearch: Boolean(user && places.enabled), placesDir: true });
     }
     if (!user) throw new HttpError(401, { error: 'Not signed in' });
 

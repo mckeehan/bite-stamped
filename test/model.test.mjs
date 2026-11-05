@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, restaurantPath, fileWord, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
+  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
 } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
@@ -63,25 +63,25 @@ test('file names: STATE-city-name, unique, readable', () => {
   assert.equal(stateCode(''), '');
 
   const debbie = { name: "Debbie's Drive Inn", city: 'Newport', state: 'Tennessee' };
-  assert.equal(restaurantPath(debbie, []), 'restaurants/TN-newport-debbie-s-drive-inn.md');
-  assert.equal(restaurantPath({ name: 'Chez Marie' }, []), 'restaurants/chez-marie.md', 'no state or city');
-  assert.equal(restaurantPath({ name: '' }, []), 'restaurants/restaurant.md');
+  assert.equal(placePath(debbie, []), 'places/TN-newport-debbie-s-drive-inn.md');
+  assert.equal(placePath({ name: 'Chez Marie' }, []), 'places/chez-marie.md', 'no state or city');
+  assert.equal(placePath({ name: '' }, []), 'places/place.md');
 
   // Another restaurant with the same name and town: -2, -3…, whatever the case.
   const taco = { name: 'Taco Bell', city: 'Sevierville', state: 'TN' };
-  assert.equal(restaurantPath(taco, ['restaurants/TN-sevierville-taco-bell.md']), 'restaurants/TN-sevierville-taco-bell-2.md');
-  assert.equal(restaurantPath(taco, ['restaurants/tn-sevierville-taco-bell.md', 'restaurants/TN-sevierville-taco-bell-2.md']), 'restaurants/TN-sevierville-taco-bell-3.md');
+  assert.equal(placePath(taco, ['places/TN-sevierville-taco-bell.md']), 'places/TN-sevierville-taco-bell-2.md');
+  assert.equal(placePath(taco, ['places/tn-sevierville-taco-bell.md', 'places/TN-sevierville-taco-bell-2.md']), 'places/TN-sevierville-taco-bell-3.md');
 
   // A restaurant keeps a name that already fits, suffix included; an old-style one moves.
-  const second = { ...taco, path: 'restaurants/TN-sevierville-taco-bell-2.md' };
-  assert.equal(restaurantPath(second, ['restaurants/TN-sevierville-taco-bell.md', second.path]), second.path);
-  const old = { ...taco, path: 'restaurants/taco-bell.md' };
-  assert.equal(restaurantPath(old, [old.path]), 'restaurants/TN-sevierville-taco-bell.md');
+  const second = { ...taco, path: 'places/TN-sevierville-taco-bell-2.md' };
+  assert.equal(placePath(second, ['places/TN-sevierville-taco-bell.md', second.path]), second.path);
+  const old = { ...taco, path: 'restaurants/taco-bell.md' }; // before 2.0.0
+  assert.equal(placePath(old, [old.path]), 'places/TN-sevierville-taco-bell.md');
   // Renamed in the app: a new name, and the old one is free again.
-  const moved = { ...taco, city: 'Kodak', path: 'restaurants/TN-sevierville-taco-bell.md' };
-  assert.equal(restaurantPath(moved, [moved.path]), 'restaurants/TN-kodak-taco-bell.md');
+  const moved = { ...taco, city: 'Kodak', path: 'places/TN-sevierville-taco-bell.md' };
+  assert.equal(placePath(moved, [moved.path]), 'places/TN-kodak-taco-bell.md');
 
-  assert.equal(mediaDir('restaurants/TN-newport-debbie-s-drive-inn.md'), 'media/TN-newport-debbie-s-drive-inn/');
+  assert.equal(mediaDir('places/TN-newport-debbie-s-drive-inn.md'), 'media/TN-newport-debbie-s-drive-inn/');
 });
 
 test('rating falls back to the visit average', () => {
@@ -158,4 +158,16 @@ test('nameMatches: every word typed starts a word of the name', () => {
   assert.ok(!nameMatches('The Dillard House', 'Waffle House'));
   assert.ok(!nameMatches('The Dillard House', 'The Chop House'));
   assert.ok(!nameMatches('The Dillard House', 'The Dam Store'));
+});
+
+test('types of places: food or not, from search results', () => {
+  assert.ok(isFoodPlace({ type: '' }), 'no type: a restaurant from before 2.0.0');
+  for (const type of ['Restaurant', 'Café', 'Bar', 'Brewery', 'Fast food', 'Ice cream']) assert.ok(isFoodPlace({ type }), type);
+  for (const type of ['Museum', 'Park', 'Attraction', 'Hotel']) assert.ok(!isFoodPlace({ type }), type);
+  assert.equal(typeFromKind('fast_food'), 'Fast food');
+  assert.equal(typeFromKind('cafe'), 'Café');
+  assert.equal(typeFromKind('museum'), 'Museum');
+  assert.equal(typeFromKind('bbq joint'), 'Restaurant');
+  assert.equal(typeFromKind('Art Museum'), 'Art museum');
+  assert.equal(typeFromKind(''), '');
 });

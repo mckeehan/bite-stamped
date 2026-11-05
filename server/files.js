@@ -11,7 +11,7 @@ const PAGE = 500;
 export function validPath(path) {
   return typeof path === 'string'
     && path.length <= 300
-    && /^(restaurants|media)\//.test(path)
+    && /^(places|restaurants|media)\//.test(path) // restaurants/: before 2.0.0
     && !/[\0\\]/.test(path)
     && path.split('/').every((part) => part && part !== '.' && part !== '..' && !part.endsWith('.tmp'));
 }

@@ -1,7 +1,7 @@
 {
-  "name": "Bite-Stamped – restaurant journal",
+  "name": "Bite-Stamped – a journal of places",
   "short_name": "Bite-Stamped",
-  "description": "A private restaurant journal that works offline.",
+  "description": "A private journal of the places you go – restaurants, bars, museums and more – that works offline.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

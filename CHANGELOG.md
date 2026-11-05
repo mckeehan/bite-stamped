@@ -15,6 +15,32 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.0.0] - 2026-11-05
+
+A journal of any kind of place, not only restaurants.
+
+### Changed
+
+- **Restart the server when updating:** files are now in `places/` instead
+  of `restaurants/`, which a server older than 2.0.0 refuses. The app moves
+  existing files (giving them the type "Restaurant") when it starts, after
+  the first sync, but only once the server runs 2.0.0; places added or
+  renamed before then wait on the device until it does.
+- Wording throughout the app is about places ("New place", "Add your first
+  place", "Delete place"…).
+- The place search lists breweries, museums and sights nearby too, and ranks
+  actual places above streets and towns, not food places above everything.
+
+### Added
+
+- A **Type** for each place (Restaurant, Bar, Café, Brewery, Museum, Park,
+  Attraction… or any text), filled in from the place search. Cards show the
+  cuisine or category, or else the type; the place page shows both.
+- For places that aren't for eating or drinking, "Cuisine" is called
+  "Category" and the Dishes section is hidden (unless it has dishes).
+- Importing a ZIP exported before 2.0.0 still works: each file replaces the
+  place it was.
+
 ## [1.3.0] - 2026-11-05
 
 ### Changed
