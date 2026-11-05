@@ -25,7 +25,7 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null 
       <button type="button" data-zoom="1" aria-label="Zoom in">+</button>
       <button type="button" data-zoom="-1" aria-label="Zoom out">−</button>
     </div>
-    <a class="map-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>`;
+    <a class="map-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>`;
   const tileLayer = container.querySelector('.map-tiles');
   const pinLayer = container.querySelector('.map-pins');
 

@@ -15,6 +15,29 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.1.0] - 2026-11-05
+
+### Added
+
+- Foursquare credit as its terms ask: the "Powered by Foursquare" logo
+  (light or dark) under Foursquare results, a "View on Foursquare" link with
+  each result, and on the page of a place picked from Foursquare, a link to
+  its page there and the logo. Such places keep their Foursquare id
+  (`foursquareId`).
+
+## [2.0.1] - 2026-11-05
+
+### Fixed
+
+- Credits for the data the app shows: "Places © OpenStreetMap contributors"
+  and/or "Places from Foursquare" under the place search results, the same
+  credit next to an address looked up from a location, and "© OpenStreetMap
+  contributors" (was "© OpenStreetMap") on the map.
+- The browser now tells OpenStreetMap's map images and search which site is
+  asking (only the site's address, not the page), as their usage policies ask
+  of web apps (`Referrer-Policy: strict-origin-when-cross-origin`, was
+  `same-origin`). Takes effect after restarting the server.
+
 ## [2.0.0] - 2026-11-05
 
 A journal of any kind of place, not only restaurants.

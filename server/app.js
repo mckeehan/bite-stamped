@@ -35,7 +35,9 @@ const SECURITY_HEADERS = {
     "frame-ancestors 'none'",
   ].join('; '),
   'X-Content-Type-Options': 'nosniff',
-  'Referrer-Policy': 'same-origin',
+  // Other sites get only this site's address, never page paths: OpenStreetMap's
+  // map images and Nominatim ask web apps to identify themselves that way.
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
 };
 
 // Codes go by email when SMTP is set up; otherwise they are written to the log.

@@ -30,6 +30,29 @@ Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominat
 allows at most one request per second and no search-as-you-type, so the app
 spaces its requests out and only searches Nominatim when you press Search.
 
+## Credits
+
+OpenStreetMap's data is under the [Open Database License](https://www.openstreetmap.org/copyright),
+which asks for a credit wherever it is shown, and so do the usage policies of
+Nominatim and the map images. Foursquare's terms ask for one for its places
+too. The app shows:
+
+- "© OpenStreetMap contributors" in the corner of the map,
+- under the place search results, "Places © OpenStreetMap contributors"
+  and/or the "Powered by Foursquare" logo (light or dark, from Foursquare's
+  brand kit, served with the app), for the results on screen,
+- with each Foursquare result, "View on Foursquare", a link to the place's
+  page there (`https://foursquare.com/v/<id>`), as Foursquare's terms ask
+  wherever its data is shown,
+- on the page of a place picked from Foursquare results, the same link and
+  logo (the place keeps `foursquareId`),
+- next to an address looked up from a location, "© OpenStreetMap
+  contributors".
+
+The server sends `Referrer-Policy: strict-origin-when-cross-origin`, so the
+browser tells OpenStreetMap's services the site's address (never the page), as
+their policies ask web apps to; before 2.0.1 it sent nothing to other sites.
+
 ## Foursquare (optional fallback)
 
 OpenStreetMap misses some places. If the server has a Foursquare key, the app
@@ -96,7 +119,8 @@ Without the key the fallback is off and the app never mentions Foursquare.
 - Some Foursquare places come with a location but no address. When you pick
   one, the app looks the address up from the location with Nominatim's
   reverse geocoding (one request) and fills in only the fields that are still
-  empty. The form says the address came from OpenStreetMap, so you can check it.
+  empty. The form says the address came from OpenStreetMap (with its credit),
+  so you can check it.
 
 ### Privacy
 

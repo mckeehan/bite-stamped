@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, isFoodPlace, PLACE_TYPES, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
+  newRestaurant, isFoodPlace, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, addressAt } from './places.js';
@@ -18,6 +18,11 @@ const sheet = document.getElementById('sheet');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const OSM_COPYRIGHT = 'https://www.openstreetmap.org/copyright';
+// "Powered by Foursquare", as Foursquare's brand guidelines ask, light or dark.
+const POWERED_BY_FOURSQUARE = `<a class="fsq-credit" href="https://foursquare.com" target="_blank" rel="noopener"><picture>
+  <source srcset="icons/powered-by-foursquare-dark.svg" media="(prefers-color-scheme: dark)">
+  <img src="icons/powered-by-foursquare.svg" alt="Powered by Foursquare" width="161" height="28"></picture></a>`;
 const link = (path) => `#/r/${encodeURIComponent(path)}`;
 // What kind of place, in a few words for cards: the cuisine (or category), else the type.
 const kindLine = (r) => r.cuisine || r.type;
@@ -422,6 +427,8 @@ function renderDetail(path) {
     directions ? `<button type="button" class="contact-btn" data-directions>📍 ${esc(r.address || 'Directions')}</button>` : '',
     r.website ? `<a href="${esc(/^https?:/.test(r.website) ? r.website : 'https://' + r.website)}" target="_blank" rel="noopener">🌐 ${esc(r.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>` : '',
     r.phone ? `<a href="tel:${esc(r.phone.replace(/[^\d+]/g, ''))}">📞 ${esc(r.phone)}</a>` : '',
+    // Found on Foursquare: its terms ask for a link to the place there.
+    r.foursquareId ? `<a href="${esc(foursquareURL(r.foursquareId))}" target="_blank" rel="noopener">🔗 View on Foursquare</a>` : '',
   ].filter(Boolean);
 
   main.innerHTML = `
@@ -441,6 +448,7 @@ function renderDetail(path) {
       </div>
       ${!r.rating && displayRating(r) ? `<p class="muted small">Visits average ${displayRating(r)} ★</p>` : ''}
       ${contact.length ? `<div class="contact">${contact.join('')}</div>` : ''}
+      ${r.foursquareId ? `<p class="fsq-place">${POWERED_BY_FOURSQUARE}</p>` : ''}
       ${r.tags.length ? `<div class="tags">${r.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
       ${r.notes ? `<div class="notes">${renderMarkdown(r.notes)}</div>` : ''}
     </section>
@@ -711,6 +719,7 @@ function renderEdit(path, params) {
       </form>
       <p class="muted small picker-status" id="placeStatus"></p>
       <ul class="place-list" id="placeResults"></ul>
+      <p class="muted small place-credit" id="placeCredit"></p>
       <button type="button" class="btn more-places" id="moreFoursquare" hidden></button>
       <button type="button" class="text-btn custom-place" id="customPlace">Not there? Add a custom location</button>
     </section>`}
@@ -737,6 +746,7 @@ function renderEdit(path, params) {
       <label>Notes <small class="muted">(Markdown)</small><textarea name="notes" rows="6">${esc(r.notes)}</textarea></label>
       <input type="hidden" name="lat" value="${r.lat ?? ''}"><input type="hidden" name="lon" value="${r.lon ?? ''}">
       <input type="hidden" name="countryCode" value="${esc(r.countryCode)}">
+      <input type="hidden" name="foursquareId" value="${esc(r.foursquareId)}">
     </form>`;
 
   const form = $('#editForm');
@@ -768,6 +778,7 @@ function renderEdit(path, params) {
       state: f.state.value.trim(),
       country: f.country.value.trim(),
       countryCode: f.countryCode.value.trim(),
+      foursquareId: f.foursquareId.value.trim(),
       website: f.website.value.trim(),
       phone: f.phone.value.trim(),
       tags: f.tags.value.split(',').map((t) => t.trim()).filter(Boolean),
@@ -967,7 +978,7 @@ function setUpPlacePicker(form, onFill = () => {}) {
           p.mine ? `<span class="journal-note">✓ ${esc(journalNote(p.mine))}</span>` : ''}</span>
         <span class="place-dist muted">${p.distance === undefined ? '' : esc(formatDistance(p.distance))}</span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-      </button></li>`).join('');
+      </button>${p.source === 'foursquare' ? `<a class="fsq-link" href="${esc(foursquareURL(p.id.slice(4)))}" target="_blank" rel="noopener">View on Foursquare</a>` : ''}</li>`).join('');
     status.textContent = found
       ? (found.length ? foundNote : `Nothing found for “${q}”.${q.includes(',') ? '' : ` If it’s not near you, add the town after a comma: “${q}, town”.`}`)
       : q
@@ -975,6 +986,12 @@ function setUpPlacePicker(form, onFill = () => {}) {
         : nearbyNote;
     moreButton.hidden = !fallbackReady(q) || foursquareFor === q;
     moreButton.textContent = `Search Foursquare for “${q}”`;
+    // Credit for the places shown (OpenStreetMap's licence and Foursquare's terms ask for it).
+    const fromOSM = shown.some((p) => !p.id.startsWith('journal:') && p.source !== 'foursquare');
+    const fromFoursquare = shown.some((p) => p.source === 'foursquare');
+    $('#placeCredit').innerHTML = [
+      fromOSM ? `Places © <a href="${OSM_COPYRIGHT}" target="_blank" rel="noopener">OpenStreetMap contributors</a>` : '',
+    ].filter(Boolean).join(' · ') + (fromFoursquare ? POWERED_BY_FOURSQUARE : '');
   };
 
   const loadNearby = async () => {
@@ -1055,8 +1072,9 @@ function setUpPlacePicker(form, onFill = () => {}) {
   });
 
   const useNewPlace = (p) => {
-    for (const key of ['name', 'type', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) {
-      const value = key === 'address' && p.street !== undefined ? p.street : p[key];
+    for (const key of ['name', 'type', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode', 'foursquareId']) {
+      const value = key === 'address' && p.street !== undefined ? p.street
+        : key === 'foursquareId' ? (p.source === 'foursquare' ? p.id.slice(4) : '') : p[key];
       form[key].value = value === undefined || value === null || Number.isNaN(value) ? '' : value;
     }
     onFill();
@@ -1081,7 +1099,9 @@ function setUpPlacePicker(form, onFill = () => {}) {
         if (value && !form[field].value.trim()) form[field].value = value;
       }
     }
-    note.textContent = found?.street ? 'Address from OpenStreetMap, based on the location. Check that it is right.' : 'No address found for this location.';
+    note.innerHTML = found?.street
+      ? `Address from the location, © <a href="${OSM_COPYRIGHT}" target="_blank" rel="noopener">OpenStreetMap contributors</a>. Check that it is right.`
+      : 'No address found for this location.';
   };
 
   // A place already in the journal: add a visit to it, or make a new restaurant anyway.
@@ -1113,7 +1133,7 @@ function setUpPlacePicker(form, onFill = () => {}) {
   };
 
   $('#customPlace').addEventListener('click', () => {
-    for (const key of ['type', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) form[key].value = '';
+    for (const key of ['type', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode', 'foursquareId']) form[key].value = '';
     onFill();
     form.name.value = input.value.trim();
     showForm();

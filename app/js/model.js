@@ -118,6 +118,10 @@ export function typeFromKind(kind) {
   return k[0].toUpperCase() + k.slice(1);
 }
 
+// The page about a place on Foursquare (its terms ask for a link wherever
+// data from Foursquare is shown).
+export const foursquareURL = (id) => (id ? `https://foursquare.com/v/${encodeURIComponent(id)}` : '');
+
 export function newRestaurant(fields = {}) {
   return normalize({ created: new Date().toISOString(), ...fields });
 }
@@ -140,6 +144,7 @@ export function normalize(d) {
     website: str(d.website),
     phone: str(d.phone),
     googlePlaceId: str(d.googlePlaceId),
+    foursquareId: str(d.foursquareId),
     tags: list(d.tags).map(str).filter(Boolean),
     created: str(d.created),
     updated: str(d.updated),
@@ -186,6 +191,7 @@ export function toMarkdown(r) {
     website: r.website,
     phone: r.phone,
     googlePlaceId: r.googlePlaceId,
+    foursquareId: r.foursquareId,
     tags: r.tags,
     created: r.created,
     updated: r.updated,
@@ -303,7 +309,7 @@ function unionBy(local, remote, key, combine = (l) => l) {
 // (An item deleted on one side but kept on the other comes back.)
 export function mergeRestaurants(local, remote) {
   const r = { ...local };
-  for (const key of ['name', 'rating', 'type', 'cuisine', 'address', 'city', 'state', 'country', 'countryCode', 'lat', 'lon', 'website', 'phone', 'googlePlaceId']) {
+  for (const key of ['name', 'rating', 'type', 'cuisine', 'address', 'city', 'state', 'country', 'countryCode', 'lat', 'lon', 'website', 'phone', 'googlePlaceId', 'foursquareId']) {
     if (!filled(r[key]) && filled(remote[key])) r[key] = remote[key];
   }
   r.created = [local.created, remote.created].filter(Boolean).sort()[0] || '';

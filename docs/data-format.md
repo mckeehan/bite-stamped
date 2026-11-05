@@ -67,6 +67,9 @@ Brewery, Museum, Park or Attraction (the app suggests these). Places to eat
 and drink (or without a type) have dishes, and `cuisine` is their cuisine;
 for other places `cuisine` holds a category (shown as "Category").
 
+`foursquareId` is set when the place was picked from Foursquare's results:
+its page there (`https://foursquare.com/v/<id>`) is linked from the place's page.
+
 A visit's `date` is the local date and time of the visit (`2026-10-12T19:30`),
 or just the date (`2026-10-12`) when the time is not known. Photo dates are
 dates only.

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
+  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
 } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
@@ -170,4 +170,12 @@ test('types of places: food or not, from search results', () => {
   assert.equal(typeFromKind('bbq joint'), 'Restaurant');
   assert.equal(typeFromKind('Art Museum'), 'Art museum');
   assert.equal(typeFromKind(''), '');
+});
+
+test('a place found on Foursquare keeps its id, and links to its page there', () => {
+  const r = newRestaurant({ name: 'The Dillard House', foursquareId: '4bb8a6e97421a59318f2c140' });
+  assert.equal(fromMarkdown('places/x.md', toMarkdown(r)).foursquareId, '4bb8a6e97421a59318f2c140');
+  assert.equal(foursquareURL(r.foursquareId), 'https://foursquare.com/v/4bb8a6e97421a59318f2c140');
+  assert.equal(foursquareURL(''), '');
+  assert.ok(!toMarkdown(newRestaurant({ name: 'x' })).includes('foursquareId'), 'not written when empty');
 });

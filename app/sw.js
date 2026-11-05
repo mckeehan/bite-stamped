@@ -7,7 +7,7 @@
 // Must match js/version.js (a test checks). It is written out here, not
 // imported, because browsers decide whether there is an update by comparing
 // this file's bytes, and Safari ignores changes in imported scripts.
-const VERSION = 'v2.0.0';
+const VERSION = 'v2.1.0';
 const CACHE = `bite-stamped-${VERSION}`;
 // The sync API sits next to this file (e.g. /bites/api/ when served below /bites).
 const API_PATH = new URL('api/', self.registration.scope).pathname;
@@ -32,6 +32,8 @@ const FILES = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  'icons/powered-by-foursquare.svg',
+  'icons/powered-by-foursquare-dark.svg',
 ];
 
 self.addEventListener('install', (event) => {

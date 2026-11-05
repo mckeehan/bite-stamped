@@ -24,6 +24,7 @@ test('serves the app with security headers, and nothing outside it', async () =>
   assert.equal(home.status, 200);
   assert.match(home.headers.get('Content-Type'), /text\/html/);
   assert.match(home.headers.get('Content-Security-Policy'), /default-src 'self'/);
+  assert.equal(home.headers.get('Referrer-Policy'), 'strict-origin-when-cross-origin'); // OSM's policies
   assert.equal((await f('/js/app.js')).status, 200);
   assert.equal((await f('/../package.json')).status, 404);
   assert.equal((await f('/%2e%2e/package.json')).status, 404);
