@@ -520,3 +520,8 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 }
 .map-card { position: absolute; left: 12px; right: 12px; bottom: 26px; z-index: 2; }
 .map-card .card { box-shadow: 0 2px 12px rgb(0 0 0 / 0.25); }
+
+/* --- timeline: visits under a heading per day --- */
+
+.cards.timeline { gap: 20px; }
+.day-heading { margin: 0 0 8px; font-size: 1.15rem; }

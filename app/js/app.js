@@ -132,25 +132,35 @@ function setTitle(text) {
 }
 
 // --- list ---
-// Two top-level lists, "Journal" (#/) and "To Try" (#/totry), each as a list or
-// a map, with its own sort order (remembered on this device).
+// Three top-level lists, each as a list or a map: "Timeline" (#/, every visit,
+// newest first, under a heading per day), "Visited" (#/visited) and "To Try"
+// (#/totry), the last two with their own sort order (remembered on this device).
 
+const LISTS = {
+  timeline: { title: 'Timeline', hash: '#/' },
+  visited: { title: 'Visited', hash: '#/visited' },
+  totry: { title: 'To Try', hash: '#/totry' },
+};
 const SORTS = {
-  visited: [['recent', 'Last visit'], ['rating', 'Rating'], ['visits', 'Most visits'], ['nearest', 'Nearest'], ['name', 'Name'], ['added', 'Date added']],
+  visited: [['name', 'Name'], ['recent', 'Last visit'], ['rating', 'Rating'], ['visits', 'Most visits'], ['nearest', 'Nearest'], ['added', 'Date added']],
   totry: [['nearest', 'Nearest'], ['added', 'Date added'], ['name', 'Name']],
 };
-const listState = { view: 'list', query: '', sorts: { visited: 'recent', totry: 'nearest' } };
+const listState = { view: 'list', query: '', sorts: { visited: 'name', totry: 'nearest' } };
 try {
   const saved = JSON.parse(localStorage.getItem('listState') || '{}');
   if (saved.view === 'map') listState.view = 'map';
-  // Before v2, To Try's old default (date added) was saved even if never chosen.
-  if (saved.v !== 2 && saved.sorts?.totry === 'added') delete saved.sorts.totry;
+  // Before v2, To Try's old default (date added) was saved even if never chosen;
+  // before v3 the visited list was the start screen, sorted by last visit.
+  if ((saved.v || 0) < 2 && saved.sorts?.totry === 'added') delete saved.sorts.totry;
+  if ((saved.v || 0) < 3) delete saved.sorts?.visited;
   Object.assign(listState.sorts, saved.sorts);
 } catch {}
 const rememberList = () => {
-  try { localStorage.setItem('listState', JSON.stringify({ v: 2, view: listState.view, sorts: listState.sorts })); } catch {}
+  try { localStorage.setItem('listState', JSON.stringify({ v: 3, view: listState.view, sorts: listState.sorts })); } catch {}
 };
-const homeOf = (r) => (r?.toTry ? '#/totry' : '#/');
+// "Back" from a restaurant goes to the list it was opened from.
+let lastList = '';
+const homeOf = (r) => (r?.toTry ? '#/totry' : lastList && lastList !== '#/totry' ? lastList : '#/');
 
 let here = null; // device position, once "Nearest" asked for it
 
@@ -219,9 +229,23 @@ function openDirections(r) {
   });
 }
 
+// "Mon, Nov 2" (with the year when it isn't this year).
+function formatDay(ymd) {
+  const [y, m, d] = ymd.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  const sameYear = y === new Date().getFullYear();
+  return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: sameYear ? undefined : 'numeric' })
+    .format(new Date(y, m - 1, d));
+}
+function formatTime(value) {
+  const [, h, min] = String(value || '').match(/T(\d\d):(\d\d)/) || [];
+  return h ? new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date(2000, 0, 1, Number(h), Number(min))) : '';
+}
+
 function renderList(tab) {
-  const title = tab === 'totry' ? 'To Try' : 'Journal';
-  setTitle(tab === 'totry' ? title : '');
+  const { title } = LISTS[tab];
+  lastList = LISTS[tab].hash;
+  setTitle(tab === 'timeline' ? '' : title);
   const everything = repo.all();
   const sort = () => listState.sorts[tab];
 
@@ -241,12 +265,45 @@ function renderList(tab) {
 
   let map = null;
   const shownRestaurants = () => sortRestaurants(
-    everything.filter((r) => (tab === 'totry') === r.toTry && matches(r, listState.query)),
+    everything.filter((r) => (tab === 'timeline' ? r.visits.length > 0 : (tab === 'totry') === r.toTry) && matches(r, listState.query)),
     sort(),
   );
+  const thumb = (r) => {
+    const cover = coverImage(r);
+    return `<span class="thumb">${cover ? `<img data-file="${esc(cover)}" alt="">` : `<span class="initial">${esc(r.name.slice(0, 1).toUpperCase())}</span>`}</span>`;
+  };
+
+  // One timeline entry: a visit, with its restaurant.
+  const visitCard = (r, v) => {
+    const sub = [r.cuisine, placeLine(r)].filter(Boolean).join(' · ');
+    const when = [formatTime(v.date), v.people.length ? `with ${v.people.join(', ')}` : ''].filter(Boolean).join(' · ');
+    return `<a class="card" href="${link(r.path)}">
+      ${thumb(r)}
+      <span class="card-body">
+        <strong>${esc(r.name)}</strong>
+        ${v.rating ? stars(v.rating, { size: 'small' }) : ''}
+        ${sub ? `<small>${esc(sub)}</small>` : ''}
+        ${when ? `<small class="muted">${esc(when)}</small>` : ''}
+      </span></a>`;
+  };
+
+  // Every visit, newest first, grouped under a heading per day.
+  const timelineHTML = (shown) => {
+    const visits = shown.flatMap((r) => r.visits.filter((v) => v.date).map((v) => ({ r, v })))
+      .sort((a, b) => b.v.date.localeCompare(a.v.date));
+    const days = [];
+    for (const item of visits) {
+      const day = item.v.date.slice(0, 10);
+      if (days.at(-1)?.day !== day) days.push({ day, items: [] });
+      days.at(-1).items.push(item);
+    }
+    return days.map(({ day, items }) => `<li class="day">
+      <h2 class="day-heading">${esc(formatDay(day))}</h2>
+      <ul class="cards">${items.map(({ r, v }) => `<li>${visitCard(r, v)}</li>`).join('')}</ul>
+    </li>`).join('');
+  };
 
   const card = (r) => {
-    const cover = coverImage(r);
     const last = lastVisit(r);
     const away = sort() === 'nearest' && here && r.lat !== null ? formatDistance(distance(here, r)) : '';
     const sub = [away, r.cuisine, placeLine(r)].filter(Boolean).join(' · ');
@@ -254,7 +311,7 @@ function renderList(tab) {
       ? (r.created ? `Added ${formatDate(r.created)}` : '')
       : r.visits.length ? `${r.visits.length} visit${r.visits.length > 1 ? 's' : ''} · ${formatDate(last)}` : '';
     return `<a class="card" href="${link(r.path)}">
-      <span class="thumb">${cover ? `<img data-file="${esc(cover)}" alt="">` : `<span class="initial">${esc(r.name.slice(0, 1).toUpperCase())}</span>`}</span>
+      ${thumb(r)}
       <span class="card-body">
         <strong>${esc(r.name)}</strong>
         ${stars(displayRating(r), { size: 'small' })}
@@ -270,11 +327,13 @@ function renderList(tab) {
       cards.innerHTML = `<li class="empty">${
         listState.query ? 'Nothing matches your search.'
         : tab === 'totry' ? 'Places you want to try go here.<br><a href="#/new?totry=1">Add one</a>'
-        : everything.length ? 'No visited places yet.' : 'Your restaurant journal is empty.<br><a href="#/new">Add your first restaurant</a>'
+        : everything.length ? (tab === 'timeline' ? 'No visits yet.' : 'No visited places yet.')
+        : 'Your restaurant journal is empty.<br><a href="#/new">Add your first restaurant</a>'
       }</li>`;
       return;
     }
-    cards.innerHTML = shown.map((r) => `<li>${card(r)}</li>`).join('');
+    cards.classList.toggle('timeline', tab === 'timeline');
+    cards.innerHTML = tab === 'timeline' ? timelineHTML(shown) : shown.map((r) => `<li>${card(r)}</li>`).join('');
     hydrateImages(cards);
   };
 
@@ -304,7 +363,9 @@ function renderList(tab) {
     $('#mapView').hidden = !mapMode;
     $('#viewBtn').innerHTML = mapMode ? ICONS.list : ICONS.map;
     $('#viewBtn').setAttribute('aria-label', mapMode ? 'Show as list' : 'Show on map');
+    // The timeline has one order (newest first); keep the button's space so the title stays centered.
     $('#sortBtn').hidden = mapMode;
+    $('#sortBtn').style.visibility = tab === 'timeline' ? 'hidden' : '';
     $('#sortNote').textContent = '';
     if (mapMode) fillMap();
     else { map?.destroy(); map = null; fillList(); }
@@ -633,7 +694,7 @@ function renderEdit(path, params) {
   if (path && !existing) return notFound();
   const r = existing ? { ...existing } : newRestaurant({ toTry: params.get('totry') === '1' });
   setTitle(existing ? `Edit ${r.name}` : 'New restaurant');
-  const back = existing ? link(existing.path) : r.toTry ? '#/totry' : '#/';
+  const back = existing ? link(existing.path) : r.toTry ? '#/totry' : homeOf(r);
 
   main.innerHTML = `
     <header class="bar">
@@ -1182,7 +1243,7 @@ function renderSyncSection() {
 let staleView = false;
 async function refreshAfterRemoteChange() {
   await repo.loadAll();
-  const onMap = listState.view === 'map' && /^#\/?(totry)?$/.test(location.hash || '#/');
+  const onMap = listState.view === 'map' && /^#\/?(totry|visited)?$/.test(location.hash || '#/');
   const editing = sheet.open || onMap || /^#\/(new|edit\/|settings)/.test(location.hash);
   if (editing) { staleView = true; return; }
   const y = window.scrollY;
@@ -1214,10 +1275,10 @@ function route() {
   render();
 }
 
-// The bottom bar shows on the three top-level screens only.
+// The bottom bar shows on the four top-level screens only.
 function updateTabs() {
   const screen = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
-  const current = { '': 'visited', totry: 'totry', settings: 'settings' }[screen];
+  const current = { '': 'timeline', visited: 'visited', totry: 'totry', settings: 'settings' }[screen];
   const tabs = document.getElementById('tabs');
   tabs.hidden = !current;
   document.body.classList.toggle('with-tabs', !!current);
@@ -1240,7 +1301,8 @@ function render() {
   if (parts[0] === 'new') return renderEdit(null, params);
   if (parts[0] === 'settings') return renderSettings();
   if (parts[0] === 'totry') return renderList('totry');
-  return renderList('visited');
+  if (parts[0] === 'visited') return renderList('visited');
+  return renderList('timeline');
 }
 
 // --- app updates ---
@@ -1254,7 +1316,7 @@ const UPDATED_FLAG = 'bite-stamped-updated';
 
 function safeToReload() {
   const screen = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
-  return (screen === '' || screen === 'totry' || screen === 'r') && !sheet.open;
+  return (['', 'visited', 'totry', 'r'].includes(screen)) && !sheet.open;
 }
 
 function reloadIfUpdated() {

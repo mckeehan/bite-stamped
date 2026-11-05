@@ -13,7 +13,7 @@ build step, no dependencies at all.
 - Visits with date, rating, people and notes
 - Dishes with rating, price, notes and an image
 - Photos with a title and date; any photo can be the cover
-- "Journal" and "To Try" lists, sorted by last visit, rating, visits, name, date
+- A "Timeline" of every visit by day, plus "Visited" and "To Try" lists, sorted by name, last visit, rating, visits, date
   added or distance, or shown on a map (OpenStreetMap)
 - Adding a place lists food places nearby and [searches by name](docs/place-search.md)
   through OpenStreetMap, with Foursquare as an optional fallback (online only,
