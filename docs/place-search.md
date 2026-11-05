@@ -12,6 +12,10 @@ directly from the browser. The code is in [`app/js/places.js`](../app/js/places.
 - **Nearby:** when the screen opens, it lists food places (restaurants, fast
   food, cafés, bakeries, pubs, bars, ice cream) within about 3 km of you,
   closest first. Typing filters this list on the device.
+- **Places you've been:** restaurants with a visit in your journal are in the
+  list too, marked "✓ Visited", even when OpenStreetMap doesn't have them.
+  With your location, those within about 5 miles (8 km) sort in by distance;
+  without it (or offline), all of them are listed, most recent visit first.
 - **Search:** pressing Search looks the name up near you first (about 30 km),
   then anywhere.
 
@@ -31,8 +35,13 @@ but only when OpenStreetMap has nothing:
 - **After Search:** if Nominatim finds nothing (or isn't reachable), the app
   asks Foursquare right away.
 
-The results show "Not on OpenStreetMap. Results from Foursquare." The same
-search is only sent once per visit to the screen.
+The results show "Not on OpenStreetMap. Results from Foursquare."
+
+- **On request:** when Foursquare hasn't been asked about what you typed (at
+  least 3 characters), a "Search Foursquare for …" button under the results
+  adds Foursquare's results at the bottom of the list.
+
+The same search is only sent once per visit to the screen.
 
 ### Turning it on
 

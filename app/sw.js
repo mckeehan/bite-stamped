@@ -7,7 +7,7 @@
 // Must match js/version.js (a test checks). It is written out here, not
 // imported, because browsers decide whether there is an update by comparing
 // this file's bytes, and Safari ignores changes in imported scripts.
-const VERSION = 'v21';
+const VERSION = 'v23';
 const CACHE = `bite-stamped-${VERSION}`;
 // The sync API sits next to this file (e.g. /bites/api/ when served below /bites).
 const API_PATH = new URL('api/', self.registration.scope).pathname;

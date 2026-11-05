@@ -302,6 +302,7 @@ label.check { display: flex; align-items: center; gap: 10px; color: var(--text);
 .choice .btn { width: 100%; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .custom-place { justify-self: center; margin: 16px 0; }
+.more-places { justify-self: center; margin-top: 16px; }
 .back-to-search { justify-self: start; padding-left: 0; }
 .results { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .results:empty { display: none; }

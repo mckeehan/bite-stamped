@@ -709,6 +709,7 @@ function renderEdit(path, params) {
       </form>
       <p class="muted small picker-status" id="placeStatus"></p>
       <ul class="place-list" id="placeResults"></ul>
+      <button type="button" class="btn more-places" id="moreFoursquare" hidden></button>
       <button type="button" class="text-btn custom-place" id="customPlace">Not there? Add a custom location</button>
     </section>`}
     <form id="editForm" class="edit-form"${existing ? '' : ' hidden'}>
@@ -827,7 +828,7 @@ function setUpPlacePicker(form) {
   const withoutDuplicates = (places) => {
     const seen = new Set();
     return places.filter((p) => {
-      const key = `${fold(p.name)}@${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
+      const key = Number.isFinite(p.lat) && Number.isFinite(p.lon) ? `${fold(p.name)}@${p.lat.toFixed(3)},${p.lon.toFixed(3)}` : p.id;
       if (seen.has(p.id) || seen.has(key)) return false;
       seen.add(p.id).add(key);
       return true;
@@ -835,32 +836,90 @@ function setUpPlacePicker(form) {
   };
   const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+  // Restaurants already visited are offered too (also offline), unless a
+  // nearby place already stands for them. With a location, those within about
+  // 5 miles sort in by distance; without one, all of them, most recent visit first.
+  const VISITED_RADIUS = 8000; // meters
+  let position = null;
+  const visited = journal.filter((r) => r.visits.length).map((r) => ({
+    id: `journal:${r.path}`,
+    name: r.name,
+    kind: '',
+    cuisine: r.cuisine,
+    address: [r.address, r.city, r.state].filter(Boolean).join(', '),
+    street: r.address,
+    city: r.city,
+    state: r.state,
+    country: r.country,
+    countryCode: r.countryCode,
+    website: r.website,
+    phone: r.phone,
+    lat: r.lat ?? NaN,
+    lon: r.lon ?? NaN,
+    mine: r,
+  }));
+  const byLastVisit = [...visited].sort((a, b) => lastVisit(b.mine).localeCompare(lastVisit(a.mine)));
+  let candidatesFor = null;
+  let candidateList = [];
+  const candidates = () => {
+    if (candidatesFor === nearby && candidateList.position === position) return candidateList;
+    const covered = new Set(nearby.map((p) => findInJournal(p, journal)).filter(Boolean));
+    const extra = (position ? visited : byLastVisit).filter((p) => !covered.has(p.mine)).map((p) => ({
+      ...p,
+      distance: position ? (Number.isFinite(p.lat) ? distance(position, p) : Infinity) : undefined,
+    })).filter((p) => !position || p.distance <= VISITED_RADIUS);
+    candidateList = position
+      ? [...nearby, ...extra].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+      : [...nearby, ...extra];
+    candidateList.position = position;
+    candidatesFor = nearby;
+    return candidateList;
+  };
+
   const nearbyMatching = (q) => {
     const fq = fold(q);
-    return q ? nearby.filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq)) : nearby;
+    return q ? candidates().filter((p) => fold(`${p.name} ${p.cuisine} ${p.kind}`).includes(fq)) : candidates();
   };
 
   // Fallback search (Foursquare, through our server; only when the server has a
   // key): when OpenStreetMap has nothing for what was typed, either after a
   // Search or once typing has paused long enough to look finished.
-  let foundFrom = '';      // '' (OpenStreetMap) or 'foursquare'
+  // The button under the results adds Foursquare's results to what is shown,
+  // for a search Foursquare hasn't answered yet.
+  let foundNote = '';      // shown above Search results, e.g. where they came from
+  let foursquareFor = '';  // the text Foursquare was last asked about
   let nearbyLoading = true;
   let typingTimer = 0;
   const TYPING_PAUSE = 1500;
+  const moreButton = $('#moreFoursquare');
   const fallbackReady = (q) => sync.state.fallbackSearch && navigator.onLine && q.length >= 3;
-  const runFallback = async (q) => {
-    status.textContent = 'Not on OpenStreetMap. Searching Foursquare…';
+  const runFallback = async (q, { extend = false } = {}) => {
+    status.textContent = extend ? 'Searching Foursquare…' : 'Not on OpenStreetMap. Searching Foursquare…';
+    moreButton.disabled = true;
+    moreButton.textContent = 'Searching Foursquare…';
     try {
       const results = await fallbackSearch(q, apiBase);
       if (input.value.trim() !== q) return;
-      found = withoutDuplicates(results);
+      const before = extend ? (found ?? nearbyMatching(q)) : [];
+      found = withoutDuplicates([...before, ...results]);
       foundFor = q;
-      foundFrom = 'foursquare';
+      foursquareFor = q;
+      const added = found.length - before.length;
+      foundNote = !extend ? 'Not on OpenStreetMap. Results from Foursquare.'
+        : added ? `Added ${added} result${added > 1 ? 's' : ''} from Foursquare at the bottom.`
+        : `Foursquare found nothing more for “${q}”.`;
       render();
     } catch {
       if (input.value.trim() === q) status.textContent = 'Search is not available right now.';
+    } finally {
+      moreButton.disabled = false;
+      moreButton.textContent = `Search Foursquare for “${input.value.trim()}”`;
     }
   };
+  moreButton.addEventListener('click', () => {
+    clearTimeout(typingTimer);
+    runFallback(input.value.trim(), { extend: true });
+  });
   const fallbackAfterTyping = () => {
     clearTimeout(typingTimer);
     const q = input.value.trim();
@@ -874,7 +933,7 @@ function setUpPlacePicker(form) {
     const q = input.value.trim();
     if (found && foundFor !== q) found = null;
     const matching = nearbyMatching(q);
-    shown = (found ? found : matching.slice(0, 60)).map((p) => ({ ...p, mine: findInJournal(p, journal) }));
+    shown = (found ? found : matching.slice(0, 60)).map((p) => ({ ...p, mine: p.mine || findInJournal(p, journal) }));
     list.innerHTML = shown.map((p, i) => `
       <li${p.mine ? ' class="in-journal"' : ''}><button type="button" data-place="${i}">
         <span class="place-text"><strong>${esc(p.name)}</strong><small>${esc(p.address || p.display || p.kind)}</small>${
@@ -883,10 +942,12 @@ function setUpPlacePicker(form) {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </button></li>`).join('');
     status.textContent = found
-      ? (found.length ? (foundFrom === 'foursquare' ? 'Not on OpenStreetMap. Results from Foursquare.' : '') : `Nothing found for “${q}”.`)
+      ? (found.length ? foundNote : `Nothing found for “${q}”.`)
       : q
         ? `${matching.length ? '' : 'No match nearby. '}Press Search to look everywhere for “${q}”.`
         : nearbyNote;
+    moreButton.hidden = !fallbackReady(q) || foursquareFor === q;
+    moreButton.textContent = `Search Foursquare for “${q}”`;
   };
 
   const loadNearby = async () => {
@@ -903,6 +964,7 @@ function setUpPlacePicker(form) {
     nearbyNote = 'Finding food places near you…';
     render();
     const here = await locate();
+    position = here;
     if (!here) {
       nearbyNote = locate.denied
         ? 'Allow location access to see places near you, or search by name.'
@@ -933,7 +995,8 @@ function setUpPlacePicker(form) {
       if (!both.length && fallbackReady(q)) return runFallback(q);
       found = both;
       foundFor = q;
-      foundFrom = '';
+      foundNote = '';
+      foursquareFor = '';
       render();
     } catch {
       if (fallbackReady(q)) return runFallback(q);
@@ -965,7 +1028,7 @@ function setUpPlacePicker(form) {
   const useNewPlace = (p) => {
     for (const key of ['name', 'cuisine', 'address', 'city', 'state', 'country', 'website', 'phone', 'lat', 'lon', 'countryCode']) {
       const value = key === 'address' && p.street !== undefined ? p.street : p[key];
-      form[key].value = value === undefined || Number.isNaN(value) ? '' : value;
+      form[key].value = value === undefined || value === null || Number.isNaN(value) ? '' : value;
     }
     showForm();
     if (!p.street && Number.isFinite(p.lat) && Number.isFinite(p.lon)) fillAddress(p);
