@@ -36,7 +36,8 @@ One event per visit, titled with the place's name:
 - The location is the place's address (and its coordinates, so maps
   can find it).
 - The notes have the visit's rating as stars, the cuisine, who was there,
-  the visit's notes and a link to the place in the app.
+  the visit's notes and a link to the place in the app, written as a
+  Markdown link (`[details](<link>)`); the event's URL is the plain link.
 
 Events are marked "free", so they don't block time in your calendar.
 

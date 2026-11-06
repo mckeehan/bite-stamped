@@ -163,7 +163,8 @@ export function toICS(restaurants, { appURL = '', now = new Date(), timeZone = S
         r.cuisine,
         v.people.length ? `With ${v.people.join(', ')}` : '',
         v.notes,
-        link,
+        // As a Markdown link: apps that show Markdown make it "details".
+        link ? `[details](<${link}>)` : '',
       ].filter(Boolean).join('\n');
       lines.push(
         'BEGIN:VEVENT',

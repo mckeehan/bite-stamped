@@ -44,7 +44,7 @@ test('visits become events: timed ones a moment (end = start), date-only ones al
   assert.match(events[0], /SUMMARY:Taco Bell/);
   assert.match(events[0], /LOCATION:1407 Winfield Dunn Pkwy\\, Sevierville\\, TN/);
   assert.match(events[0], /GEO:35.87;-83.56/);
-  assert.match(events[0], /DESCRIPTION:★★★★☆\\nMexican\\nWith Ann\\, Bob\\nCrunchy\\; good\\, cheap\\nand fast\\nhttps:\/\/www.example.com\/bites\/#\/r\/restaurants%2Ftaco-bell.md/);
+  assert.match(events[0], /DESCRIPTION:★★★★☆\\nMexican\\nWith Ann\\, Bob\\nCrunchy\\; good\\, cheap\\nand fast\\n\[details\]\(<https:\/\/www.example.com\/bites\/#\/r\/restaurants%2Ftaco-bell.md>\)/);
   assert.match(events[0], /DTSTAMP:20261105T120000Z/);
   assert.match(events[1], /DTSTART;VALUE=DATE:20261026\r\nDTEND;VALUE=DATE:20261027/);
   // The same visit keeps its id from one refresh to the next.

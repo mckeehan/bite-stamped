@@ -20,6 +20,15 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.8.1] - 2026-11-06
+
+### Changed
+
+- Calendar feed: the link to the place in an event's notes is a Markdown
+  link, `[details](<link>)`, so apps that show Markdown display "details".
+  The event's URL stays the plain link. Takes effect after restarting the
+  server; calendar apps pick it up on their next refresh.
+
 ## [2.8.0] - 2026-11-06
 
 ### Added
