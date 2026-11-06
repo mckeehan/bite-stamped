@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, notePreview, isFoodPlace, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
+  newRestaurant, notePreview, isFoodPlace, placeSymbol, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, addressAt } from './places.js';
@@ -278,9 +278,12 @@ function renderList(tab) {
     everything.filter((r) => (tab === 'timeline' ? r.visits.length > 0 : (tab === 'totry') === r.toTry) && matches(r, listState.query)),
     sort(),
   );
+  // The cover photo, or else a symbol for the kind of place (also shown
+  // when the photo can't be loaded).
   const thumb = (r) => {
     const cover = coverImage(r);
-    return `<span class="thumb">${cover ? `<img data-file="${esc(cover)}" alt="">` : `<span class="initial">${esc(r.name.slice(0, 1).toUpperCase())}</span>`}</span>`;
+    return `<span class="thumb place-thumb"><span class="symbol" aria-hidden="true">${placeSymbol(r)}</span>${
+      cover ? `<img data-file="${esc(cover)}" alt="">` : ''}</span>`;
   };
 
   // One timeline entry: a visit, with its restaurant.

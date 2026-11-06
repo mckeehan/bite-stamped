@@ -201,6 +201,10 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb .initial { font-size: 1.6rem; font-weight: 600; color: var(--accent); }
+/* A place's symbol sits under its photo: seen when there is none, or it is missing. */
+.place-thumb > * { grid-area: 1 / 1; }
+.place-thumb .symbol { font-size: 2rem; line-height: 1; }
+.place-thumb.missing img { display: none; }
 .thumb.small { width: 52px; height: 52px; }
 .thumb.small .initial { font-size: 1.3rem; }
 .thumb.large { width: 96px; height: 96px; }

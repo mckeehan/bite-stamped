@@ -15,6 +15,17 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.7.0] - 2026-11-06
+
+### Changed
+
+- On the Timeline, Visited and To Try, a place without a photo shows a
+  symbol for its kind instead of its first letter: 🌮 for a Mexican
+  restaurant, 🍕 for a pizzeria, ☕ for a café, ⛽ for a fuel station, 🥾 for a
+  hiking trail, 🏨 for a hotel, and so on (from its type, and for restaurants
+  their cuisine; 🍽️ for other places to eat, 📍 for the rest). The symbol also
+  shows when a photo can't be loaded.
+
 ## [2.6.0] - 2026-11-06
 
 ### Added

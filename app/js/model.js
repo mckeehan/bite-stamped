@@ -118,6 +118,68 @@ export function typeFromKind(kind) {
   return k[0].toUpperCase() + k.slice(1);
 }
 
+// A symbol (emoji) for a place without a photo, from its type and cuisine or
+// category: 🍕 for a pizzeria, ⛽ for a fuel station, 🥾 for a hiking trail.
+// The first rule that matches wins, so specific ones come before general ones
+// ("dog park" before "park", "parking" before both).
+const SYMBOLS = [
+  // eating and drinking
+  [/pizz/, '🍕'], [/taco|burrito|mexican|tex-mex|latin american/, '🌮'], [/burger/, '🍔'], [/hot dog/, '🌭'],
+  [/chicken|wings/, '🍗'], [/bbq|barbecue|smokehouse/, '🍖'], [/steak|butcher/, '🥩'], [/sushi|japanese/, '🍣'],
+  [/chinese/, '🥡'], [/ramen|noodle|pho\b|vietnamese|thai|mongolian|korean|asian/, '🍜'], [/indian|curry/, '🍛'],
+  [/greek|mediterranean|falafel|meze|middle eastern|gyro/, '🥙'], [/fish/, '🐟'], [/seafood|oyster|crab|lobster|cajun|creole/, '🦞'],
+  [/italian|pasta/, '🍝'], [/bagel/, '🥯'], [/breakfast|pancake|waffle|brunch|diner/, '🥞'], [/donut|doughnut/, '🍩'],
+  [/ice cream|frozen yogurt|gelato/, '🍦'], [/candy/, '🍬'], [/chocolate/, '🍫'], [/cupcake|dessert|cake/, '🧁'],
+  [/bakery|pastry/, '🥐'], [/coffee|caf[eé]|espresso/, '☕'], [/\btea\b/, '🍵'], [/soup/, '🍲'],
+  [/sandwich|\bdeli\b/, '🥪'], [/salad|vegan|vegetarian|health food|juice|smoothie/, '🥗'], [/fondue|tapas|buffet|cafeteria/, '🍽️'],
+  [/wine/, '🍷'], [/distillery|liquor|whisk/, '🥃'], [/sports bar|\bpub\b|gastropub|brew|beer/, '🍺'],
+  [/cocktail|lounge|karaoke|\bbar\b/, '🍸'], [/food truck/, '🚚'], [/fast food/, '🍟'],
+  [/farmers market|fruit and vegetable|\bfarm\b|stable/, '🧺'], [/grocery|supermarket|gourmet/, '🛒'],
+  // travel and the outdoors
+  [/fuel|gas station|truck stop|petrol/, '⛽'], [/car wash/, '🧽'], [/parking/, '🅿️'],
+  [/oil change|automotive|car parts|\btires?\b|motorsports|auto repair/, '🔧'], [/campground|rv park|\bcamp/, '🏕️'],
+  [/car dealer|rental car|\brv\b|motorhome/, '🚗'], [/bed and breakfast/, '🛏️'], [/hotel|motel|resort|\binn\b|lodg/, '🏨'],
+  [/airport|airline/, '✈️'], [/\brail\b|train/, '🚆'], [/\bbus\b/, '🚌'], [/rest area|travel|tourist/, '🧭'],
+  [/hiking|\btrail/, '🥾'], [/dog park/, '🐕'], [/national park|provincial park|state park|forest/, '🌲'],
+  [/waterfall|river|lake|\bdam\b|hot spring|boat|pier/, '🏞️'], [/beach/, '🏖️'], [/mountain|scenic|lookout|outdoors/, '⛰️'],
+  [/garden/, '🌷'], [/park|playground|plaza/, '🌳'],
+  // things to see and do
+  [/zoo|aquarium/, '🦁'], [/water park|swimming|\bpool\b(?! hall)/, '🏊'], [/pool hall|billiard/, '🎱'], [/bowling/, '🎳'],
+  [/arcade|video game/, '🕹️'], [/amusement|theme park|\bfair\b/, '🎡'], [/art museum|art gallery/, '🖼️'],
+  [/museum|historic|monument|landmark/, '🏛️'], [/bridge/, '🌉'], [/movie|cinema/, '🎬'],
+  [/music|concert|rock club|performing arts|theater|theatre|event space|arts and entertainment/, '🎭'], [/stadium|baseball|race track|arena|sports club/, '🏟️'],
+  [/gym|fitness|martial arts|recreation center/, '🏋️'], [/golf/, '⛳'], [/church|chapel|temple|mosque|synagogue/, '⛪'],
+  [/cemetery|funeral/, '🪦'],
+  // services
+  [/dentist/, '🦷'], [/pharmacy/, '💊'], [/veterinar|\bpet\b/, '🐾'],
+  [/hospital|emergency|urgent care|medical|doctor|clinic|surgeon|therapy|acupuncture/, '🏥'],
+  [/library|bookstore/, '📚'], [/school|university|college|education|student/, '🏫'], [/post office/, '📮'],
+  [/shipping|freight|storage|warehouse|recycling/, '📦'], [/bank|atm\b|financial/, '🏦'], [/police/, '🚓'],
+  [/courthouse/, '⚖️'], [/hair|salon|barber|cosmetics/, '💇'], [/dry cleaner|laundr/, '👔'], [/tv station/, '📺'],
+  [/office|coworking|business|conference|convention|real estate|government|city hall|polling|utility|non-profit|community center/, '🏢'],
+  [/hardware|home service/, '🔨'], [/furniture|mattress|appliance|lighting|home store/, '🛋️'],
+  [/home \(private\)|apartment|housing|condo/, '🏠'], [/city|neighborhood/, '🏙️'],
+  // shops
+  [/jewelry/, '💍'], [/shoe/, '👟'], [/clothing|boutique|men's|women's|lingerie|textiles/, '👕'],
+  [/electronics|mobile phone|photography/, '📱'], [/bicycle/, '🚲'], [/flower/, '💐'], [/antique/, '🏺'],
+  [/toy|hobby|party|crafts|gift/, '🎁'], [/sporting goods|\bgun\b/, '⚾'], [/convenience/, '🏪'],
+  [/store|shop|retail|mall|outlet|market|thrift|pawn|boutique/, '🛍️'],
+];
+const GENERIC_TYPES = /^(restaurant|fast food|food|other|)$/i;
+
+export function placeSymbol(r) {
+  const type = str(r.type).trim();
+  const kinds = str(r.cuisine).split(',').map((c) => c.trim()).filter(Boolean);
+  // "Restaurant" says little: its cuisine says more. Other types say most.
+  const texts = GENERIC_TYPES.test(type) ? [...kinds, type] : [type, ...kinds];
+  for (const text of texts) {
+    const t = text.toLowerCase();
+    const hit = SYMBOLS.find(([re]) => re.test(t));
+    if (hit) return hit[1];
+  }
+  return isFoodPlace(r) ? '🍽️' : '📍';
+}
+
 // The page about a place on Foursquare (its terms ask for a link wherever
 // data from Foursquare is shown).
 export const foursquareURL = (id) => (id ? `https://foursquare.com/v/${encodeURIComponent(id)}` : '');

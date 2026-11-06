@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, notePreview, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches,
-} from '../app/js/model.js';
+  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, notePreview, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches, placeSymbol } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
   const r = newRestaurant({
@@ -188,4 +187,28 @@ test('notePreview: the first line of the notes, without Markdown marks', () => {
   assert.equal(notePreview('From [Taking the kids](https://example.com/x?utm_source=tn)'), 'From Taking the kids');
   assert.equal(notePreview('---\n> Ask for the `cacio e pepe`'), 'Ask for the cacio e pepe');
   assert.equal(notePreview('snake_case_name stays'), 'snake_case_name stays');
+});
+
+test('a place without a photo gets a symbol for its kind', () => {
+  const sym = (type, cuisine = '') => placeSymbol({ type, cuisine });
+  assert.equal(sym('Restaurant', 'Mexican, Tex-Mex'), '🌮', 'a restaurant: its cuisine');
+  assert.equal(sym('Fast food', 'Burger, Fast Food'), '🍔');
+  assert.equal(sym('Fast food'), '🍟');
+  assert.equal(sym('Restaurant', 'American'), '🍽️', 'nothing more specific');
+  assert.equal(sym('', ''), '🍽️', 'no type: from before types, a restaurant');
+  assert.equal(sym('Ice cream parlor'), '🍦', 'other types: the type first');
+  assert.equal(sym('Steakhouse'), '🥩', '"steak" is not "tea"');
+  assert.equal(sym('Fuel station', 'Fuel Station, Convenience Store'), '⛽');
+  assert.equal(sym('Parking'), '🅿️', 'parking is not a park');
+  assert.equal(sym('Dog park'), '🐕');
+  assert.equal(sym('Park'), '🌳');
+  assert.equal(sym('Hiking trail'), '🥾', 'a trail is not a train');
+  assert.equal(sym('Barbershop'), '💇', 'a barber is not a bar');
+  assert.equal(sym('Beer garden'), '🍺', 'a beer garden is not a garden');
+  assert.equal(sym('Movie theater'), '🎬');
+  assert.equal(sym("Doctor's office"), '🏥');
+  assert.equal(sym('Hardware store'), '🔨');
+  assert.equal(sym('Department store'), '🛍️');
+  assert.equal(sym('Tire shop'), '🔧');
+  assert.equal(sym('Something else entirely'), '📍', '"entirely" has no tire');
 });
