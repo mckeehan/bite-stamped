@@ -177,3 +177,27 @@ test('sync works when the app is served below a path', async () => {
   const b = await make();
   assert.deepEqual(b.store.live(), ['restaurants/s.md']);
 });
+
+test('signing in shows the sync at once, and the first download counts up to the total', async () => {
+  const env = testServer();
+  const a = await device(env);
+  for (let i = 0; i < 25; i++) await write(a.store, newRestaurant({ path: `places/p-${i}.md`, name: `Place ${i}` }));
+  await a.sync.sync();
+
+  const store = memoryStore();
+  const seen = [];
+  const sync = createSync({ store, fetch: deviceFetch(env.app), onState: (s) => seen.push(s) });
+  await sync.init();
+  await sync.sendCode('me@example.com');
+  await sync.verify('me@example.com', env.codes.get('me@example.com'));
+  const signedIn = seen.findIndex((s) => s.email);
+  assert.equal(seen[signedIn].status, 'syncing', 'syncing from the moment the code is accepted');
+  const downloads = seen.filter((s) => s.phase === 'download');
+  assert.ok(downloads.length >= 3, 'progress is reported along the way');
+  assert.deepEqual(downloads[0].progress, { done: 0, total: 25 });
+  assert.deepEqual(downloads.at(-1).progress, { done: 20, total: 25 });
+  assert.equal(sync.state.status, 'idle');
+  assert.equal(sync.state.phase, '');
+  assert.equal(sync.state.progress, null);
+  assert.equal(store.live().length, 25);
+});

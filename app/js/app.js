@@ -1511,8 +1511,9 @@ const sync = createSync({
   onRemoteChange: () => refreshAfterRemoteChange(),
   onState: () => {
     updateTabs();
-    // Never redraw the sign-in form while someone may be typing in it.
-    if ($('#syncSection') && !$('#signIn')) renderSyncSection();
+    // Never redraw the sign-in form while someone may be typing in it; once
+    // the code is accepted, the signed-in view (with the sync) replaces it.
+    if ($('#syncSection') && (!$('#signIn') || sync.state.email)) renderSyncSection();
     if ($('#calendarSection') && $('#calendarSection').dataset.email !== (sync.state.email || '')) renderCalendarSection();
     // The server says whether it offers the fallback search after Settings is drawn.
     if ($('#fallbackNote')) $('#fallbackNote').hidden = !sync.state.fallbackSearch;
@@ -1592,17 +1593,27 @@ async function renderCalendarSection(link) {
 function renderSyncSection() {
   const section = $('#syncSection');
   if (!section) return;
-  const { email, status, lastSync, pending, error } = sync.state;
+  const { email, status, lastSync, pending, error, phase, progress } = sync.state;
 
   if (email) {
-    const line = status === 'syncing' ? 'Syncing…'
+    const first = !lastSync; // the first sync on this device: the whole journal comes down
+    const syncing = status === 'syncing' && (
+      phase === 'upload' ? `Uploading changes… ${pending} left.`
+      : phase === 'download' && progress ? (progress.total
+        ? `Downloading ${first ? 'your journal' : 'changes'}… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}.`
+        : `Downloading ${first ? 'your journal' : 'changes'}… ${progress.done.toLocaleString()} so far.`)
+      : first ? 'Signed in. Getting your journal from the server…' : 'Syncing…');
+    const line = syncing ? syncing
       : status === 'offline' ? `Offline. ${pending ? `${pending} change${pending === 1 ? '' : 's'} will sync when you are back online.` : 'Changes sync when you are back online.'}`
       : status === 'error' ? `Last sync failed: ${error}`
       : pending ? `${pending} change${pending === 1 ? '' : 's'} waiting.` : `Up to date. Last synced ${timeAgo(lastSync)}.`;
     section.innerHTML = `
       <h2>Sync</h2>
       <p>Signed in as <strong>${esc(email)}</strong></p>
-      <p class="muted small">${esc(line)}</p>
+      <p class="small sync-line${status === 'syncing' ? ' busy' : ' muted'}" role="status">${esc(line)}</p>
+      ${status === 'syncing' && phase === 'download' && progress?.total
+        ? `<progress class="sync-progress" max="${progress.total}" value="${progress.done}" aria-label="Sync progress"></progress>` : ''}
+      ${status === 'syncing' && first ? '<p class="muted small">The first sync brings your whole journal to this device; with many places and photos it takes a moment. You can use the app meanwhile.</p>' : ''}
       <p class="muted small">Everything you change here is saved on this device first and synced to your other devices and the server backup whenever there is a connection.</p>
       <div class="row">
         <button class="btn" id="syncNow"${status === 'syncing' ? ' disabled' : ''}>Sync now</button>
@@ -1645,6 +1656,8 @@ function renderSyncSection() {
     form.dataset.busy = '1';
     const button = $('button[type="submit"]', form);
     button.disabled = true;
+    button.classList.add('busy');
+    button.textContent = form.dataset.step === 'email' ? 'Sending code…' : 'Signing in…';
     try {
       if (form.dataset.step === 'email') {
         await sync.sendCode(form.email.value);
@@ -1652,9 +1665,11 @@ function renderSyncSection() {
         hint('If this address may use the app, a 6-digit code is on its way. It is valid for 10 minutes.');
         form.code.focus();
       } else {
+        // The view switches to "signed in" (with the sync's progress) as soon
+        // as the code is accepted; this returns once the first sync is done.
         await sync.verify(form.email.value, form.code.value, navigator.userAgent.slice(0, 100));
         delete form.dataset.busy;
-        toast('Signed in. Syncing…');
+        toast(sync.state.status === 'idle' ? 'Signed in. Your journal is up to date.' : 'Signed in.');
         renderSyncSection();
         return;
       }
@@ -1662,6 +1677,8 @@ function renderSyncSection() {
       hint(err.message);
     } finally {
       button.disabled = false;
+      button.classList.remove('busy');
+      if (button.textContent.endsWith('…')) button.textContent = form.dataset.step === 'code' ? 'Sign in' : 'Send code';
       delete form.dataset.busy;
     }
   });

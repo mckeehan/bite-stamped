@@ -20,6 +20,20 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.8.0] - 2026-11-06
+
+### Added
+
+- Signing in shows what is happening: the button says "Sending code…" and
+  then "Signing in…", and as soon as the code is accepted Settings shows you
+  signed in, with the first sync under way: "Downloading your journal… 350
+  of 2,056" and a progress bar. (Before, the button just stayed grey
+  until the whole journal had downloaded.) Later syncs show what they are
+  doing too (uploading, downloading).
+- The server says how many changes are left to download (`remaining` in
+  `/api/changes`), for the progress bar. Takes effect after restarting the
+  server; until then the app counts the files without a bar.
+
 ## [2.7.2] - 2026-11-06
 
 ### Changed

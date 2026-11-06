@@ -14,7 +14,9 @@ const encodePath = (path) => path.split('/').map(encodeURIComponent).join('/');
 const decode = (bytes) => new TextDecoder().decode(bytes);
 
 export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base = '', onRemoteChange = () => {}, onState = () => {} }) {
-  const state = { status: 'idle', email: null, lastSync: null, pending: 0, error: '', fallbackSearch: false, placesDir: false };
+  // phase while syncing: 'check', 'upload' or 'download'; progress: { done, total }
+  // of the download (total null when the server doesn't say).
+  const state = { status: 'idle', email: null, lastSync: null, pending: 0, error: '', fallbackSearch: false, placesDir: false, phase: '', progress: null };
   let running = null;
   let again = false;
 
@@ -90,7 +92,7 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
     const dirty = await store.listDirty();
     // Images before the Markdown that refers to them.
     dirty.sort((a, b) => Number(a.path.endsWith('.md')) - Number(b.path.endsWith('.md')));
-    set({ pending: dirty.length });
+    set({ pending: dirty.length, ...(dirty.length ? { phase: 'upload' } : {}) });
     for (const rec of dirty) {
       await pushOne(rec);
       set({ pending: state.pending - 1 });
@@ -100,11 +102,16 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
   async function pull() {
     let cursor = (await store.getMeta('cursor')) || 0;
     let changed = false;
+    let done = 0;
+    let total = null;
     for (;;) {
       const res = await api(`/api/changes?since=${cursor}`);
       if (!res.ok) throw new Error(`Sync failed (${res.status})`);
       const page = await res.json();
+      if (total === null && Number.isFinite(page.remaining)) total = page.remaining;
+      if (page.changes.length) set({ phase: 'download', progress: { done, total } });
       for (const c of page.changes) {
+        if (++done % 10 === 0) set({ progress: { done, total } });
         const local = await store.getRecord(c.path);
         if (local?.dirty) continue; // uploaded next, merged if needed
         if (c.deleted) {
@@ -141,21 +148,21 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
     const online = typeof navigator === 'undefined' || navigator.onLine !== false;
     if (!online) return set({ status: 'offline', pending: (await store.listDirty()).length });
     if (!state.email) return set({ status: 'signed-out', pending: (await store.listDirty()).length });
-    set({ status: 'syncing', error: '' });
+    set({ status: 'syncing', error: '', phase: 'check', progress: null });
     try {
       await checkServer();
       await push();
       await pull();
       const lastSync = new Date().toISOString();
       await store.setMeta('lastSync', lastSync);
-      set({ status: 'idle', lastSync, pending: (await store.listDirty()).length });
+      set({ status: 'idle', lastSync, pending: (await store.listDirty()).length, phase: '', progress: null });
     } catch (e) {
       if (e instanceof SignedOut) {
         await store.setMeta('account', null);
-        set({ status: 'signed-out', email: null });
+        set({ status: 'signed-out', email: null, phase: '', progress: null });
       } else {
         const offline = e instanceof TypeError; // fetch could not reach the server
-        set({ status: offline ? 'offline' : 'error', error: offline ? '' : e.message, pending: (await store.listDirty()).length });
+        set({ status: offline ? 'offline' : 'error', error: offline ? '' : e.message, pending: (await store.listDirty()).length, phase: '', progress: null });
       }
     }
   }
@@ -200,7 +207,7 @@ export function createSync({ store, fetch: doFetch = (...a) => fetch(...a), base
     async verify(email, code, device = '') {
       const data = await postJSON('/api/auth/verify', { email, code, device });
       await store.setMeta('account', data.email);
-      set({ email: data.email, status: 'idle' });
+      set({ email: data.email, status: 'syncing', phase: 'check', progress: null });
       await init(); // learns what the server offers this account
       await sync();
       return data;

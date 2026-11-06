@@ -61,7 +61,9 @@ export function createFiles({ storage }) {
     const rows = storage.all('SELECT path, rev, seq, size, type, deleted FROM files WHERE seq > ? ORDER BY seq LIMIT ?', since, PAGE)
       .map((r) => ({ ...r, deleted: !!r.deleted }));
     const server = storage.get("SELECT value FROM settings WHERE key = 'server_id'").value;
-    return json({ server, changes: rows, cursor: rows.length ? rows[rows.length - 1].seq : since, more: rows.length === PAGE });
+    // remaining: changes after `since`, this page's included (for progress).
+    const { remaining } = storage.get('SELECT COUNT(*) AS remaining FROM files WHERE seq > ?', since);
+    return json({ server, changes: rows, cursor: rows.length ? rows[rows.length - 1].seq : since, more: rows.length === PAGE, remaining });
   }
 
   function get(path, rev) {
