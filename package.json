@@ -1,6 +1,6 @@
 {
   "name": "bite-stamped",
-  "version": "2.8.2",
+  "version": "2.9.0",
   "private": true,
   "description": "Offline-first journal of places (restaurants, bars, museums…) for the phone, stored as Markdown files with YAML headers, with a small self-hosted sync server.",
   "type": "module",

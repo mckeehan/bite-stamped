@@ -388,9 +388,15 @@ function renderList(tab) {
     $('#mapCard').hidden = true;
     const shown = shownRestaurants();
     const byPath = new Map(shown.map((r) => [r.path, r]));
-    map = createMap($('#mapBox'), {
+    // Start close around you, or until your location is known, around the
+    // place visited (or added) most recently, rather than the whole world.
+    const latest = shown
+      .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon))
+      .reduce((best, r) => (!best || (lastVisit(r) || r.created || '') > (lastVisit(best) || best.created || '') ? r : best), null);
+    const thisMap = map = createMap($('#mapBox'), {
       pins: shown.map((r) => ({ id: r.path, lat: r.lat, lon: r.lon, label: r.name })),
       here,
+      focus: here || latest,
       onPin: (path) => {
         const box = $('#mapCard');
         if (!path) { box.hidden = true; return; }
@@ -401,6 +407,13 @@ function renderList(tab) {
     });
     const missing = shown.filter((r) => r.lat === null || r.lon === null).length;
     $('#sortNote').textContent = missing ? `${missing} without a location ${missing === 1 ? 'is' : 'are'} not on the map.` : '';
+    if (!here) {
+      locate().then((pos) => {
+        if (!pos) return;
+        here = pos;
+        if (map === thisMap) thisMap.setHere(pos);
+      });
+    }
   };
 
   const fill = () => {

@@ -20,6 +20,17 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.9.0] - 2026-11-06
+
+### Changed
+
+- The map (Timeline, Visited, To Try) opens close in, a few miles across,
+  around where you are, instead of zoomed out to show every place. Until
+  your location is known (or without it), it opens around the place you
+  visited or added most recently. When the places shown are close together
+  anyway (after a search, say), it still shows them all. The map asks for
+  your location when it opens, the same as "Nearest" does.
+
 ## [2.8.2] - 2026-11-06
 
 ### Changed

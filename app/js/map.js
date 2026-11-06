@@ -7,6 +7,8 @@ const TILE = 256;
 const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 19;
+// How close the map starts around `focus`: a few miles across on a phone.
+export const START_ZOOM = 13;
 
 // Web Mercator: lon/lat ↔ world position in [0, 1).
 const toWorld = (lat, lon) => {
@@ -15,8 +17,10 @@ const toWorld = (lat, lon) => {
 };
 
 // `pins`: [{ lat, lon, label, id }]. `onPin(id)` when one is tapped,
-// `onPin(null)` when the map itself is tapped.
-export function createMap(container, { pins = [], onPin = () => {}, here = null } = {}) {
+// `onPin(null)` when the map itself is tapped. With `focus` ({ lat, lon }),
+// the map starts close around it (START_ZOOM) instead of showing every pin,
+// unless the pins fit at that zoom anyway.
+export function createMap(container, { pins = [], onPin = () => {}, here = null, focus = null } = {}) {
   container.classList.add('map');
   container.innerHTML = `
     <div class="map-tiles"></div>
@@ -53,12 +57,15 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null 
       return { ...p, world: toWorld(p.lat, p.lon), el };
     });
   let hereDot = null;
-  if (here) {
+  const showHere = () => {
+    if (!here || hereDot) return;
     hereDot = document.createElement('span');
     hereDot.className = 'map-here';
     hereDot.title = 'You are here';
     pinLayer.append(hereDot);
-  }
+  };
+  showHere();
+  let moved = false; // the user panned or zoomed: leave the view alone
 
   const scale = () => TILE * 2 ** zoom;
   const toScreen = (w) => ({ x: (w.x - center.x) * scale() + width / 2, y: (w.y - center.y) * scale() + height / 2 });
@@ -107,6 +114,7 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null 
   // Zoom to `z`, keeping the world point under screen point (sx, sy) in place.
   function zoomTo(z, sx = width / 2, sy = height / 2) {
     z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+    moved = true;
     const before = { x: center.x + (sx - width / 2) / scale(), y: center.y + (sy - height / 2) / scale() };
     zoom = z;
     center = { x: before.x - (sx - width / 2) / scale(), y: before.y - (sy - height / 2) / scale() };
@@ -119,7 +127,8 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null 
     center.x = ((center.x % 1) + 1) % 1;
   }
 
-  // Show every pin (and "here", if there are no pins).
+  // Show every pin (and "here", if there are no pins); with a focus, start
+  // close around it unless all pins fit at that zoom.
   function fit() {
     const points = placed.length ? placed.map((p) => p.world) : here ? [toWorld(here.lat, here.lon)] : [];
     if (!points.length) { zoom = 3; center = toWorld(30, -40); return draw(); }
@@ -131,7 +140,20 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null 
     const zx = Math.log2((width - pad * 2) / TILE / Math.max(maxX - minX, 1e-9));
     const zy = Math.log2((height - pad * 2) / TILE / Math.max(maxY - minY, 1e-9));
     zoom = Math.max(MIN_ZOOM, Math.min(15, Math.floor(Math.min(zx, zy) * 4) / 4));
+    if (focus && zoom < START_ZOOM) {
+      zoom = START_ZOOM;
+      center = toWorld(focus.lat, focus.lon);
+    }
     draw();
+  }
+
+  // The device's position arrived after the map opened: show it, and start
+  // around it instead, if the user hasn't moved the map yet.
+  function setHere(pos) {
+    if (!pos) return;
+    here = pos;
+    showHere();
+    if (!moved) { focus = pos; fit(); } else draw();
   }
 
   function resize() {
@@ -165,6 +187,7 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null 
       gesture.zoom = zoom;
       gesture.distance = now.distance;
     }
+    if (now.x !== gesture.x || now.y !== gesture.y) moved = true;
     center = { x: center.x - (now.x - gesture.x) / scale(), y: center.y - (now.y - gesture.y) / scale() };
     gesture.x = now.x;
     gesture.y = now.y;
@@ -216,5 +239,5 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null 
   resize();
   fit();
 
-  return { fit, destroy: () => observer.disconnect() };
+  return { fit, setHere, destroy: () => observer.disconnect() };
 }
