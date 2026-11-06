@@ -1,6 +1,6 @@
 {
   "name": "bite-stamped",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "private": true,
   "description": "Offline-first journal of places (restaurants, bars, museums…) for the phone, stored as Markdown files with YAML headers, with a small self-hosted sync server.",
   "type": "module",
@@ -11,6 +11,7 @@
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.js",
     "test": "node --test test/*.test.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "import-eatlist": "node scripts/import-eatlist.mjs"
+    "import-eatlist": "node scripts/import-eatlist.mjs",
+    "import-foursquare": "node --env-file-if-exists=.env tools/foursquare-import/import.mjs"
   }
 }

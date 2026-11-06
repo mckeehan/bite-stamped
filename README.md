@@ -30,6 +30,9 @@ build step, no dependencies at all.
   ([data format](docs/data-format.md))
 - [Bring over your data from Eatlist](docs/import-from-eatlist.md) (on a Mac):
   restaurants, visits, people, dishes and photos, as a ZIP to import
+- [Bring over your Foursquare / Swarm check-ins](tools/foursquare-import/README.md):
+  places, visits, lists, tips and photos from Foursquare's data export, merged
+  with the places you have
 
 ## Run the server
 

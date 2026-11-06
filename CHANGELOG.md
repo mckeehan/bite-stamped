@@ -15,6 +15,18 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.6.0] - 2026-11-06
+
+### Added
+
+- `tools/foursquare-import`: turns a Foursquare / Swarm data export into a
+  ZIP to import: a place per venue, a visit per check-in (with what you wrote),
+  places to try from your lists, tips and photos. Check-ins at places you
+  already have become visits there, without repeating visits you already
+  have. Addresses and kinds of place come from Foursquare (with the server's
+  key) or OpenStreetMap, cached. `npm run import-foursquare -- --help`.
+  The app itself is unchanged.
+
 ## [2.5.0] - 2026-11-06
 
 ### Added
