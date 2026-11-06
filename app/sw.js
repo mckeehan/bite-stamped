@@ -7,7 +7,7 @@
 // Must match js/version.js (a test checks). It is written out here, not
 // imported, because browsers decide whether there is an update by comparing
 // this file's bytes, and Safari ignores changes in imported scripts.
-const VERSION = 'v2.9.0';
+const VERSION = 'v2.10.0';
 const CACHE = `bite-stamped-${VERSION}`;
 // The sync API sits next to this file (e.g. /bites/api/ when served below /bites).
 const API_PATH = new URL('api/', self.registration.scope).pathname;
@@ -28,6 +28,7 @@ const FILES = [
   'js/sync.js',
   'js/version.js',
   'js/map.js',
+  'js/offline.js',
   'icons/icon.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',

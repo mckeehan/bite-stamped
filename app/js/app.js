@@ -5,6 +5,7 @@ import {
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, addressAt } from './places.js';
 import { createMap } from './map.js';
+import * as offline from './offline.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
 import { createSync } from './sync.js';
@@ -191,6 +192,7 @@ const ICONS = {
   add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   directions: '<svg viewBox="0 0 24 24"><path d="M3.5 11 20.5 3.5 13 20.5l-2-7.5-7.5-2Z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
+  offline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7.6A5.5 5.5 0 0 1 17 10a4 4 0 0 1 2.4 6.8M16 18H7a4 4 0 0 1-1.3-7.8M3.5 3.5l17 17"/></svg>',
 };
 
 // Directions and sharing for one restaurant: map apps, the system share sheet,
@@ -268,6 +270,7 @@ function renderList(tab) {
     </header>
     <div class="list-tools">
       <input type="search" id="q" placeholder="Search places, dishes, people…" value="${esc(listState.query)}" autocomplete="off">
+      ${tab === 'timeline' ? '<button type="button" class="btn offline-btn" id="offlineBtn" hidden></button>' : ''}
       <p class="muted small sort-note" id="sortNote"></p>
     </div>
     <ul class="cards" id="cards"></ul>
@@ -465,6 +468,70 @@ function renderList(tab) {
 
   fill();
   if (sort() === 'nearest' && !here) useNearest();
+  if (tab === 'timeline') {
+    showOfflineButton();
+    $('#offlineBtn').addEventListener('click', openOfflineCheckIns);
+  }
+}
+
+// --- offline check-ins ---
+// Saved on the check-in screens when the place search can't be reached
+// (offline.js). The Timeline shows a button for them while there are any.
+
+async function showOfflineButton() {
+  const btn = $('#offlineBtn');
+  if (!btn) return;
+  const items = await offline.list();
+  if (!btn.isConnected) return;
+  btn.hidden = !items.length;
+  btn.innerHTML = `${ICONS.offline}<span>${items.length} offline check-in${items.length === 1 ? '' : 's'} to finish</span>`;
+}
+
+async function openOfflineCheckIns() {
+  const items = (await offline.list()).slice().reverse(); // newest first
+  if (!items.length) return showOfflineButton();
+  openSheet(`
+    <div class="choice offline-list">
+      <h2>Offline check-ins</h2>
+      <p class="muted small">Saved when the place search couldn’t be reached. Open one to search where you were then and check in at that time.</p>
+      <ul class="place-list">${items.map((c) => `
+        <li><a href="#/new?offline=${encodeURIComponent(c.id)}">
+          <span class="place-text"><strong>${c.query ? `“${esc(c.query)}”` : 'No search text'}</strong><small>${esc(formatDateTime(c.date))}${
+            c.lat === null ? ' · no location' : ''}</small></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </a><button type="button" class="text-btn danger" data-del="${esc(c.id)}" aria-label="Delete this offline check-in">Delete</button></li>`).join('')}
+      </ul>
+      <button type="button" class="btn" data-close>Close</button>
+    </div>`, (dlg) => {
+    dlg.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-del]');
+      if (!b || !confirm('Delete this offline check-in?')) return;
+      await offline.remove(b.dataset.del);
+      showOfflineButton();
+      if ((await offline.list()).length) openOfflineCheckIns();
+      else closeSheet();
+    });
+  });
+}
+
+// Keeps a check-in for later: what was typed, where the device is and when.
+async function saveOfflineCheckIn(query, button) {
+  const date = now(); // the time of the check-in, not of finding the location
+  if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+  const here = await locate();
+  await offline.add({ query, lat: here?.lat, lon: here?.lon, date });
+  toast(here ? 'Saved for later, with your location' : 'Saved for later (your location was not available)');
+  location.replace('#/');
+}
+
+// The button on the check-in screens, shown when the place search can't be reached.
+const SAVE_OFFLINE = `<div class="save-offline" id="saveOffline" hidden>
+  <button type="button" class="btn primary" id="saveOfflineBtn">Save offline check-in</button>
+  <p class="muted small">Keeps what you typed, where you are and the time. Finish it from the Timeline when you are back online.</p>
+</div>`;
+function offerOfflineSave(show = true) {
+  const box = $('#saveOffline');
+  if (box) box.hidden = !show;
 }
 
 // --- detail ---
@@ -552,7 +619,7 @@ function renderDetail(path) {
   });
   $('#addVisit').addEventListener('click', () => editVisit(r, -1));
   for (const b of $$('[data-directions]', main)) b.addEventListener('click', () => openDirections(r));
-  if (pendingVisit?.path === path) { const { index = -1 } = pendingVisit; pendingVisit = null; editVisit(r, index); }
+  if (pendingVisit?.path === path) { const { index = -1, ...more } = pendingVisit; pendingVisit = null; editVisit(r, index, more); }
   $$('[data-visit]').forEach((b) => b.addEventListener('click', () => editVisit(r, Number(b.dataset.visit))));
   $('#addDish')?.addEventListener('click', () => editDish(r, -1));
   $$('[data-dish]').forEach((b) => b.addEventListener('click', () => editDish(r, Number(b.dataset.dish))));
@@ -570,8 +637,10 @@ function peopleDatalist() {
   return `<datalist id="people">${repo.knownPeople().map((p) => `<option value="${esc(p)}">`).join('')}</datalist>`;
 }
 
-function editVisit(r, index) {
-  const v = r.visits[index] || { date: now(), rating: 0, people: [], notes: '' };
+// `date`: for a new visit, its time instead of now; `offlineId`: the offline
+// check-in it finishes, done once the visit is saved.
+function editVisit(r, index, { date = '', offlineId = '' } = {}) {
+  const v = r.visits[index] || { date: date || now(), rating: 0, people: [], notes: '' };
   openSheet(`
     <form method="dialog" class="sheet-form">
       <header><button type="button" class="text-btn" data-close>Cancel</button><h2>${index < 0 ? 'New visit' : 'Visit'}</h2><button class="text-btn strong" value="save">Save</button></header>
@@ -620,6 +689,7 @@ function editVisit(r, index) {
       else r.visits[index] = visit;
       if (index < 0 && r.toTry) r.toTry = false;
       await repo.save(r);
+      if (offlineId) await offline.remove(offlineId);
       closeSheet();
       renderDetail(r.path);
     });
@@ -751,24 +821,31 @@ function editPhoto(r, index) {
 
 // --- add / edit ---
 
-function renderEdit(path, params) {
+// `resume`: an offline check-in (offline.js) to finish: its search runs
+// around where it was saved, and the visit gets its time.
+function renderEdit(path, params, resume = null) {
   const existing = path ? repo.get(path) : null;
   if (path && !existing) return notFound();
   const r = existing ? { ...existing } : newRestaurant({ toTry: params.get('totry') === '1' });
-  setTitle(existing ? `Edit ${r.name}` : 'New place');
-  const back = existing ? link(existing.path) : r.toTry ? '#/totry' : homeOf(r);
+  setTitle(existing ? `Edit ${r.name}` : resume ? 'Offline check-in' : 'New place');
+  const back = existing ? link(existing.path) : resume ? '#/' : r.toTry ? '#/totry' : homeOf(r);
+  const visitDate = resume?.date || now();
+  const checkingIn = !resume && params.get('checkin') === '1';
 
   main.innerHTML = `
     <header class="bar">
       <a class="text-btn" href="${back}">Cancel</a>
-      <h1 class="center">${existing ? 'Edit' : 'New place'}</h1>
+      <h1 class="center">${existing ? 'Edit' : resume ? 'Offline check-in' : 'New place'}</h1>
       <button class="text-btn strong" form="editForm" id="saveBtn"${existing ? '' : ' hidden'}>Save</button>
     </header>
     ${existing ? '' : `
     <section class="place-picker" id="placePicker">
+      ${resume ? `<p class="resume-note">Saved offline on <strong>${esc(formatDateTime(resume.date))}</strong>${
+        resume.lat === null ? '' : ', searching around where you were then'}. Pick the place to check in there at that time.</p>` : ''}
       <form class="search-row" id="placeSearch" role="search">
         <input type="search" id="placeQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
       </form>
+      ${checkingIn ? SAVE_OFFLINE : ''}
       <p class="muted small picker-status" id="placeStatus"></p>
       <ul class="place-list" id="placeResults"></ul>
       <p class="muted small place-credit" id="placeCredit"></p>
@@ -780,7 +857,7 @@ function renderEdit(path, params) {
       <label>Name <input name="name" value="${esc(r.name)}" required autocomplete="off"></label>
       <div class="field"><span>Rating</span>${stars(r.rating, { input: true, size: 'large' })}</div>
       <label class="check"><input type="checkbox" name="toTry"${r.toTry ? ' checked' : ''}> I want to try this place</label>
-      ${existing ? '' : `<p class="muted small visit-note" id="visitNote"${r.toTry ? ' hidden' : ''}>Saving also adds a visit for ${esc(formatDateTime(now()))}.</p>`}
+      ${existing ? '' : `<p class="muted small visit-note" id="visitNote"${r.toTry ? ' hidden' : ''}>Saving also adds a visit for ${esc(formatDateTime(visitDate))}.</p>`}
       <label>Type <input name="type" value="${esc(r.type)}" list="typeList" placeholder="e.g. Restaurant, Bar, Museum" autocomplete="off"></label>
       <datalist id="typeList">${[...new Set([...PLACE_TYPES, ...repo.all().map((x) => x.type).filter(Boolean)])].map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
       <label><span id="cuisineLabel">${isFoodPlace(r) ? 'Cuisine' : 'Category'}</span> <input name="cuisine" value="${esc(r.cuisine)}" placeholder="${isFoodPlace(r) ? 'e.g. Thai, Pizza' : 'e.g. Art, History'}" autocomplete="off"></label>
@@ -812,7 +889,11 @@ function renderEdit(path, params) {
   form.type.addEventListener('input', labelCuisine);
 
   if (!existing) {
-    setUpPlacePicker(form, labelCuisine, params.get('q') || '');
+    setUpPlacePicker(form, labelCuisine, resume ? resume.query : params.get('q') || '', {
+      at: resume && resume.lat !== null ? { lat: resume.lat, lon: resume.lon } : null,
+      visit: resume ? { date: resume.date, offlineId: resume.id } : null,
+      checkingIn,
+    });
     form.toTry.addEventListener('change', () => { $('#visitNote').hidden = form.toTry.checked; });
   }
 
@@ -841,8 +922,9 @@ function renderEdit(path, params) {
     if (!r.name) return;
     // A new place that isn't just "to try" was visited: record a visit for now,
     // with the rating given here.
-    if (!existing && !r.toTry) r.visits = [{ date: now(), rating: r.rating, people: [], notes: '' }];
+    if (!existing && !r.toTry) r.visits = [{ date: visitDate, rating: r.rating, people: [], notes: '' }];
     const saved = await repo.save(r, { rename: true });
+    if (resume) await offline.remove(resume.id);
     location.replace(link(saved.path));
   });
 }
@@ -892,10 +974,11 @@ function renderCheckIn() {
       <form class="search-row" id="checkinSearch" role="search">
         <input type="search" id="checkinQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
       </form>
+      ${SAVE_OFFLINE}
       <p class="muted small picker-status" id="checkinStatus" role="status">Finding places around you…</p>
       <ul class="place-list" id="checkinList"></ul>
       <p class="muted small place-credit" id="checkinCredit"></p>
-      <a class="text-btn custom-place" href="#/new" id="checkinMore">Not here? Search for a place</a>
+      <a class="text-btn custom-place" href="#/new?checkin=1" id="checkinMore">Not here? Search for a place</a>
     </section>`;
   const list = $('#checkinList');
   const status = $('#checkinStatus');
@@ -909,7 +992,7 @@ function renderCheckIn() {
   // The full search, with what was typed.
   const searchLink = () => {
     const q = input.value.trim();
-    return q ? `#/new?q=${encodeURIComponent(q)}` : '#/new';
+    return q ? `#/new?checkin=1&q=${encodeURIComponent(q)}` : '#/new?checkin=1';
   };
   const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
@@ -917,7 +1000,10 @@ function renderCheckIn() {
     note = text;
     const q = input.value.trim();
     if (!q || !lastDraw) { status.textContent = text; return; }
-    status.textContent = shown.length
+    const searchable = $('#saveOffline').hidden;
+    status.textContent = !searchable
+      ? `${shown.length ? 'Only places in your journal' : `Nothing in your journal matches “${q}”`}: the place search is not available right now.`
+      : shown.length
       ? `Press Search to look further for “${q}”.`
       : `Nothing around you matches “${q}”. Press Search to look further.`;
   };
@@ -967,6 +1053,7 @@ function renderCheckIn() {
     e.preventDefault();
     if (input.value.trim()) location.hash = searchLink();
   });
+  $('#saveOfflineBtn').addEventListener('click', (e) => saveOfflineCheckIn(input.value, e.currentTarget));
 
   list.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-i]');
@@ -986,11 +1073,13 @@ function renderCheckIn() {
     if (!current()) return; // left the screen, or a newer load
     if (!here) {
       status.innerHTML = locate.denied
-        ? 'Allow location access to check in at the places around you, or <a href="#/new">search for a place</a>.'
-        : 'Your location is not available. <a href="#/new">Search for a place</a> instead.';
+        ? 'Allow location access to check in at the places around you, or <a href="#/new?checkin=1">search for a place</a>.'
+        : 'Your location is not available. <a href="#/new?checkin=1">Search for a place</a> instead.';
+      if (!navigator.onLine) offerOfflineSave();
       return;
     }
     draw(here, []);
+    offerOfflineSave(!navigator.onLine);
     showStatus(navigator.onLine ? 'Finding places around you…' : 'You are offline: only places in your journal.');
     if (!navigator.onLine) return;
     try {
@@ -1010,7 +1099,10 @@ function renderCheckIn() {
       showStatus(!nearest.length ? 'Nothing found around you. Search for a place instead.'
         : nearest[0].distance > CHECKIN_RADIUS ? `Nothing within about ${formatDistance(CHECKIN_RADIUS)}; the nearest places:` : '');
     } catch {
-      if (current()) showStatus('Places around you are not available right now; showing the ones in your journal.');
+      if (current()) {
+        offerOfflineSave();
+        showStatus('Places around you are not available right now; showing the ones in your journal.');
+      }
     }
   };
 
@@ -1095,7 +1187,10 @@ function focusSearch(input) {
 }
 
 // `query`: text to search for straight away (from the check-in screen's box).
-function setUpPlacePicker(form, onFill = () => {}, query = '') {
+// `at`: search around there instead of the device's position; `visit`:
+// { date, offlineId } for a place already in the journal (an offline check-in);
+// `checkingIn`: offer to save an offline check-in when search is unavailable.
+function setUpPlacePicker(form, onFill = () => {}, query = '', { at = null, visit = null, checkingIn = false } = {}) {
   const journal = repo.all();
   const picker = $('#placePicker');
   const input = $('#placeQuery');
@@ -1194,7 +1289,7 @@ function setUpPlacePicker(form, onFill = () => {}, query = '') {
     moreButton.disabled = true;
     moreButton.textContent = 'Searching Foursquare…';
     try {
-      const results = await fallbackSearch(q, apiBase, undefined, { anywhere: anywhere() });
+      const results = await fallbackSearch(q, apiBase, at || undefined, { anywhere: anywhere() });
       if (input.value.trim() !== q) return;
       const before = extend ? (found ?? nearbyMatching(q)) : [];
       // Restaurants from Foursquare go above results that are only streets or towns.
@@ -1208,7 +1303,7 @@ function setUpPlacePicker(form, onFill = () => {}, query = '') {
         : `Foursquare found nothing more for “${q}”.`;
       render();
     } catch {
-      if (input.value.trim() === q) status.textContent = 'Search is not available right now.';
+      if (input.value.trim() === q) unavailable();
     } finally {
       moreButton.disabled = false;
       moreButton.textContent = `Search Foursquare for “${input.value.trim()}”`;
@@ -1263,11 +1358,22 @@ function setUpPlacePicker(form, onFill = () => {}, query = '') {
     }
   };
 
+  // Search can't be reached: say so, and on a check-in offer to keep it for later.
+  const unavailable = (text = 'Search is not available right now.') => {
+    status.textContent = checkingIn ? `${text} Save the check-in for later, or add a custom location below.` : text;
+    if (checkingIn) offerOfflineSave();
+  };
+  $('#saveOfflineBtn')?.addEventListener('click', (e) => saveOfflineCheckIn(input.value, e.currentTarget));
+
   const findNearby = async () => {
-    if (!navigator.onLine) { nearbyNote = 'You are offline. Add a custom location below.'; return render(); }
-    nearbyNote = 'Finding places near you…';
+    if (!navigator.onLine) {
+      nearbyNote = checkingIn ? 'You are offline. Save the check-in for later, or add a custom location below.' : 'You are offline. Add a custom location below.';
+      if (checkingIn) offerOfflineSave();
+      return render();
+    }
+    nearbyNote = at ? 'Finding places around where you were…' : 'Finding places near you…';
     render();
-    const here = await locate();
+    const here = at || await locate();
     position = here;
     if (!here) {
       nearbyNote = locate.denied
@@ -1280,6 +1386,7 @@ function setUpPlacePicker(form, onFill = () => {}, query = '') {
       nearbyNote = nearby.length ? '' : 'No places found nearby. Search by name instead.';
     } catch {
       nearbyNote = 'Places nearby are not available right now. Search by name instead.';
+      if (checkingIn) offerOfflineSave();
     }
     render();
   };
@@ -1288,11 +1395,11 @@ function setUpPlacePicker(form, onFill = () => {}, query = '') {
     e.preventDefault();
     const q = input.value.trim();
     if (!q) return;
-    if (!navigator.onLine) { status.textContent = 'You are offline. Add a custom location below.'; return; }
+    if (!navigator.onLine) return unavailable('You are offline.');
     clearTimeout(typingTimer);
     status.textContent = 'Searching…';
     try {
-      const results = await searchPlaces(q, undefined, { anywhere: anywhere() });
+      const results = await searchPlaces(q, at || undefined, { anywhere: anywhere() });
       if (input.value.trim() !== q) return;
       // Nearby matches stay on top.
       const both = withoutDuplicates([...nearbyMatching(q), ...results]);
@@ -1306,7 +1413,7 @@ function setUpPlacePicker(form, onFill = () => {}, query = '') {
       if (!both.some((p) => p.venue || p.mine) && fallbackReady(q)) runFallback(q, { extend: true });
     } catch {
       if (fallbackReady(q)) return runFallback(q);
-      status.textContent = 'Search is not available right now.';
+      unavailable();
     }
   });
   input.addEventListener('input', () => {
@@ -1382,7 +1489,7 @@ function setUpPlacePicker(form, onFill = () => {}, query = '') {
         <button type="button" class="btn" data-close>Cancel</button>
       </div>`, (dlg) => {
       $('#dupVisit', dlg).addEventListener('click', () => {
-        pendingVisit = { path: r.path };
+        pendingVisit = { path: r.path, ...visit };
         location.replace(link(r.path));
       });
       $('#dupNew', dlg).addEventListener('click', () => {
@@ -1729,6 +1836,15 @@ function notFound() {
 
 // --- router ---
 
+// An offline check-in to finish (from the Timeline's list).
+async function renderResume(params) {
+  const hash = location.hash;
+  const item = await offline.get(params.get('offline'));
+  if (location.hash !== hash) return;
+  if (!item) { toast('That offline check-in is already done.'); location.replace('#/'); return; }
+  renderEdit(null, params, item);
+}
+
 function route() {
   if (sheet.open) closeSheet();
   if (staleView) { staleView = false; repo.loadAll().then(render); window.scrollTo(0, 0); return; }
@@ -1759,6 +1875,7 @@ function render() {
   const parts = pathPart.split('/').filter(Boolean);
   if (parts[0] === 'r' && parts[1]) return renderDetail(decodeURIComponent(parts[1]));
   if (parts[0] === 'edit' && parts[1]) return renderEdit(decodeURIComponent(parts[1]), params);
+  if (parts[0] === 'new' && params.get('offline')) return renderResume(params);
   if (parts[0] === 'new') return renderEdit(null, params);
   if (parts[0] === 'checkin') return renderCheckIn();
   if (parts[0] === 'settings') return renderSettings();

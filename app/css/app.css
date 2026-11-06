@@ -567,3 +567,26 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 .sync-progress { width: 100%; height: 8px; accent-color: var(--accent); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .sync-line.busy::before { animation: none; } }
+
+/* Offline check-ins: the Timeline's button, its list, and saving one. */
+.offline-btn { gap: 8px; justify-self: start; border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.offline-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.offline-list { text-align: left; }
+.offline-list h2, .offline-list > p { text-align: center; }
+.offline-list .place-list li { display: flex; align-items: center; gap: 8px; }
+.offline-list .place-list a {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 14px;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 2px;
+  color: inherit;
+  text-decoration: none;
+}
+.offline-list .place-list button { display: inline-flex; flex: none; width: auto; padding: 10px 4px; }
+.save-offline { display: grid; gap: 6px; margin: 4px 0 12px; }
+.save-offline[hidden] { display: none; }
+.save-offline p { margin: 0; }
+.resume-note { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 0.9rem; }

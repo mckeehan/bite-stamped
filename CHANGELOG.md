@@ -20,6 +20,18 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.10.0] - 2026-11-06
+
+### Added
+
+- **Offline check-ins.** When the place search can't be reached while
+  checking in (no connection, server or OpenStreetMap down), "Save offline
+  check-in" keeps what you typed, where you are and the time. The Timeline
+  then shows a button, "1 offline check-in to finish"; opening one once you
+  are back online searches for what you typed around where you were, and the
+  visit you add gets the time you saved it, not the time you finish it. They
+  stay on the device that saved them (not synced) until finished or deleted.
+
 ## [2.9.0] - 2026-11-06
 
 ### Changed

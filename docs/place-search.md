@@ -47,6 +47,20 @@ list stays in view. Pulling the list down (or the refresh button at the top)
 looks again with a fresh location; the places OpenStreetMap knows are only
 fetched again once you have moved about 100 m, or after 10 minutes.
 
+### Offline check-ins
+
+When the place search can't be reached (no connection, or OpenStreetMap or
+the server not answering), the check-in screen and the search it leads to
+offer **Save offline check-in**. That keeps what you typed, where the device
+is and the time, on this device only (they are not journal files, so they
+don't sync and aren't in exports). While there are any, the Timeline shows a
+button, "N offline check-ins to finish", which lists them (newest first, each
+with a Delete). Opening one, once you are back online, runs its search around
+where you were then, not where you are now, and lists the places nearby. The
+visit gets the saved time: a new place gets a visit at that time, and for a
+place already in your journal, "Add visit" opens a visit with that date and
+time filled in. Once the visit is saved, the offline check-in is gone.
+
 ## Credits
 
 OpenStreetMap's data is under the [Open Database License](https://www.openstreetmap.org/copyright),
