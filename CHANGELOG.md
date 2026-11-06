@@ -15,6 +15,21 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+The commit of each release is tagged in git with its version, `vX.Y.Z`
+(e.g. `git checkout v2.7.1`). Versions released together with a later one,
+without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
+have no tag.
+
+## [2.7.2] - 2026-11-06
+
+### Changed
+
+- A new app icon for a journal of any kind of place: a map pin with a check
+  mark in a round, dashed stamp (places you have been, stamped like a
+  passport) instead of a plate with fork and knife. Same orange. On an
+  iPhone the home screen keeps the old icon until the app is added to it
+  again.
+
 ## [2.7.1] - 2026-11-06
 
 ### Fixed

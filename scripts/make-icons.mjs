@@ -1,4 +1,5 @@
-// Draws the app icon (a plate with fork and knife) as SVG and as PNGs.
+// Draws the app icon (a map pin with a check mark in a round, dashed stamp:
+// places you have been, stamped like a passport) as SVG and as PNGs.
 // No image libraries: shapes are rasterised here with 4×4 supersampling and
 // written as PNG with node:zlib. Run with `npm run icons`.
 
@@ -21,20 +22,42 @@ const rect = (x0, y0, x1, y1, r = 0) => (x, y) => {
   const cy = Math.max(y0 + r, Math.min(y, y1 - r));
   return (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
 };
+// The pin: a circle with a point below, made of the circle and the triangle
+// between the point and where its sides touch the circle.
+const PIN = { cx: 256, cy: 218, r: 96, tipY: 404 };
+const tangent = (() => {
+  const d = PIN.tipY - PIN.cy;
+  const sin = Math.sqrt(1 - (PIN.r / d) ** 2);
+  return { dx: PIN.r * sin, y: PIN.cy + (PIN.r * PIN.r) / d };
+})();
+const triangle = (ax, ay, bx, by, cx, cy) => (x, y) => {
+  const side = (px, py, qx, qy) => (qx - px) * (y - py) - (qy - py) * (x - px);
+  const d1 = side(ax, ay, bx, by), d2 = side(bx, by, cx, cy), d3 = side(cx, cy, ax, ay);
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+};
+const pin = (x, y) => circle(PIN.cx, PIN.cy, PIN.r)(x, y)
+  || triangle(PIN.cx - tangent.dx, tangent.y, PIN.cx + tangent.dx, tangent.y, PIN.cx, PIN.tipY)(x, y);
+// The stamp: a ring of dashes, and a thin ring inside it.
+const ring = (r0, r1) => (x, y) => { const d = Math.hypot(x - 256, y - 256); return d >= r0 && d <= r1; };
+const DASHES = 24, DUTY = 0.6;
+const dashed = (r0, r1) => (x, y) => {
+  if (!ring(r0, r1)(x, y)) return false;
+  const turn = ((Math.atan2(y - 256, x - 256) / (2 * Math.PI)) + 1) % 1;
+  return (turn * DASHES) % 1 < DUTY;
+};
+// A check mark: two strokes with round ends.
+const CHECK = [[212, 220], [244, 252], [302, 188]];
+const CHECK_WIDTH = 26;
+const stroke = (points, width) => (x, y) => points.slice(1).some(([bx, by], i) => {
+  const [ax, ay] = points[i];
+  const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)));
+  return Math.hypot(x - (ax + t * (bx - ax)), y - (ay + t * (by - ay))) <= width / 2;
+});
 const layers = [
-  [WHITE, circle(256, 256, 150)],
-  [RIM, circle(256, 256, 112)],
-  [WHITE, circle(256, 256, 100)],
-  // fork
-  [WHITE, rect(70, 120, 80, 200, 5)],
-  [WHITE, rect(88, 120, 98, 200, 5)],
-  [WHITE, rect(106, 120, 116, 200, 5)],
-  [WHITE, rect(70, 185, 116, 225, 18)],
-  [WHITE, rect(84, 210, 102, 392, 9)],
-  // knife
-  [WHITE, rect(398, 120, 436, 270, 19)],
-  [WHITE, rect(398, 140, 418, 270)],
-  [WHITE, rect(408, 250, 426, 392, 9)],
+  [WHITE, dashed(205, 220)],
+  [RIM, ring(185, 192)],
+  [WHITE, pin],
+  [BG, stroke(CHECK, CHECK_WIDTH)],
 ];
 
 function render(size, { rounded }) {
@@ -99,12 +122,16 @@ function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
+const pinPath = `M ${(PIN.cx - tangent.dx).toFixed(1)} ${tangent.y.toFixed(1)} A ${PIN.r} ${PIN.r} 0 1 1 ${(PIN.cx + tangent.dx).toFixed(1)} ${tangent.y.toFixed(1)} L ${PIN.cx} ${PIN.tipY} Z`;
+const dash = (2 * Math.PI * 212.5) / DASHES;
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 <rect width="512" height="512" rx="112" fill="#c2410c"/>
-<circle cx="256" cy="256" r="150" fill="#fff"/><circle cx="256" cy="256" r="112" fill="#fde8dc"/><circle cx="256" cy="256" r="100" fill="#fff"/>
-<g fill="#fff"><rect x="70" y="120" width="10" height="80" rx="5"/><rect x="88" y="120" width="10" height="80" rx="5"/><rect x="106" y="120" width="10" height="80" rx="5"/>
-<rect x="70" y="185" width="46" height="40" rx="18"/><rect x="84" y="210" width="18" height="182" rx="9"/>
-<rect x="398" y="120" width="38" height="150" rx="19"/><rect x="398" y="140" width="20" height="130"/><rect x="408" y="250" width="18" height="142" rx="9"/></g>
+<g transform="translate(256 256) scale(0.8) translate(-256 -256)">
+<circle cx="256" cy="256" r="212.5" fill="none" stroke="#fff" stroke-width="15" stroke-dasharray="${(dash * DUTY).toFixed(2)} ${(dash * (1 - DUTY)).toFixed(2)}"/>
+<circle cx="256" cy="256" r="188.5" fill="none" stroke="#fde8dc" stroke-width="7"/>
+<path d="${pinPath}" fill="#fff"/>
+<polyline points="${CHECK.map((p) => p.join(',')).join(' ')}" fill="none" stroke="#c2410c" stroke-width="${CHECK_WIDTH}" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
 </svg>
 `;
 
