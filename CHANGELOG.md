@@ -20,6 +20,13 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.8.2] - 2026-11-06
+
+### Changed
+
+- The Visited tab's icon matches the app icon, a map pin with a check mark
+  in a dashed stamp ring, instead of a fork and knife.
+
 ## [2.8.1] - 2026-11-06
 
 ### Changed
