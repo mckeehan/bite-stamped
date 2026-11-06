@@ -552,3 +552,6 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 .day-heading { margin: 0 0 8px; font-size: 1.15rem; }
 
 .feed-url { font-size: 0.85rem; margin-bottom: 10px; }
+
+/* The end of a list drawn in parts: coming near it draws more. */
+.cards > .more { list-style: none; height: 1px; }

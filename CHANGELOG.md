@@ -15,6 +15,16 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.7.1] - 2026-11-06
+
+### Fixed
+
+- The Timeline was slow to appear with a long history (thousands of visits):
+  it drew every visit at once. The lists (Timeline, Visited, To Try) now draw
+  the first 50 cards at once and more as you scroll towards the end; with
+  13,000 visits the Timeline appears in a fraction of the time. Starting the
+  app no longer reads the stored images just to find the places.
+
 ## [2.7.0] - 2026-11-06
 
 ### Changed

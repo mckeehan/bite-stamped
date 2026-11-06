@@ -88,7 +88,7 @@ document.addEventListener('keydown', (e) => {
 const starValue = (root, name = 'rating') => Number($(`.stars.input[data-name="${name}"]`, root)?.dataset.value || 0);
 
 async function hydrateImages(root = main) {
-  await Promise.all($$('img[data-file]', root).map(async (img) => {
+  await Promise.all($$('img[data-file]:not([src])', root).map(async (img) => {
     const url = await repo.imageURL(img.dataset.file);
     if (url) img.src = url;
     else img.closest('.thumb, .cover')?.classList.add('missing');
@@ -300,22 +300,6 @@ function renderList(tab) {
       </span></a>`;
   };
 
-  // Every visit, newest first, grouped under a heading per day.
-  const timelineHTML = (shown) => {
-    const visits = shown.flatMap((r) => r.visits.filter((v) => v.date).map((v) => ({ r, v })))
-      .sort((a, b) => b.v.date.localeCompare(a.v.date));
-    const days = [];
-    for (const item of visits) {
-      const day = item.v.date.slice(0, 10);
-      if (days.at(-1)?.day !== day) days.push({ day, items: [] });
-      days.at(-1).items.push(item);
-    }
-    return days.map(({ day, items }) => `<li class="day">
-      <h2 class="day-heading">${esc(formatDay(day))}</h2>
-      <ul class="cards">${items.map(({ r, v }) => `<li>${visitCard(r, v)}</li>`).join('')}</ul>
-    </li>`).join('');
-  };
-
   const card = (r) => {
     const last = lastVisit(r);
     const away = sort() === 'nearest' && here && r.lat !== null ? formatDistance(distance(here, r)) : '';
@@ -336,7 +320,14 @@ function renderList(tab) {
       </span></a>`;
   };
 
+  // Long lists are drawn a part at a time: the first cards at once, more as
+  // the end comes near while scrolling (a journal can have thousands of
+  // visits, and drawing them all made the screen slow to appear).
+  const CHUNK = 50;
+  let more = null; // IntersectionObserver of the current list
   const fillList = () => {
+    more?.disconnect();
+    more = null;
     const shown = shownRestaurants();
     const cards = $('#cards');
     if (!shown.length) {
@@ -349,8 +340,47 @@ function renderList(tab) {
       return;
     }
     cards.classList.toggle('timeline', tab === 'timeline');
-    cards.innerHTML = tab === 'timeline' ? timelineHTML(shown) : shown.map((r) => `<li>${card(r)}</li>`).join('');
-    hydrateImages(cards);
+    // The timeline: every visit, newest first, under a heading per day.
+    const items = tab === 'timeline'
+      ? shown.flatMap((r) => r.visits.filter((v) => v.date).map((v) => ({ r, v }))).sort((a, b) => b.v.date.localeCompare(a.v.date))
+      : shown;
+    cards.innerHTML = '<li class="more" aria-hidden="true"></li>';
+    const end = cards.lastElementChild;
+    let drawn = 0;
+    let lastDay = '';
+    const drawMore = (count = CHUNK) => {
+      const upTo = Math.min(items.length, drawn + count);
+      if (tab === 'timeline') {
+        let sameDay = ''; // cards that go on under the last heading drawn
+        let html = '';
+        for (let i = drawn; i < upTo; i++) {
+          const { r, v } = items[i];
+          const day = v.date.slice(0, 10);
+          const li = `<li>${visitCard(r, v)}</li>`;
+          if (day === lastDay && !html) { sameDay += li; continue; }
+          if (day !== lastDay) {
+            if (html) html += '</ul></li>';
+            html += `<li class="day"><h2 class="day-heading">${esc(formatDay(day))}</h2><ul class="cards">`;
+            lastDay = day;
+          }
+          html += li;
+        }
+        if (sameDay) end.previousElementSibling?.querySelector('ul').insertAdjacentHTML('beforeend', sameDay);
+        if (html) end.insertAdjacentHTML('beforebegin', `${html}</ul></li>`);
+      } else {
+        end.insertAdjacentHTML('beforebegin', items.slice(drawn, upTo).map((r) => `<li>${card(r)}</li>`).join(''));
+      }
+      drawn = upTo;
+      listState.drawn = drawn;
+      hydrateImages(cards);
+      if (drawn >= items.length) { end.hidden = true; more?.disconnect(); }
+    };
+    // After a sync, as many as before, so the scroll position is still there.
+    drawMore(keepDrawn ? Math.max(CHUNK, listState.drawn || 0) : CHUNK);
+    if (drawn < items.length) {
+      more = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) drawMore(); }, { rootMargin: '1500px 0px' });
+      more.observe(end);
+    }
   };
 
   const fillMap = () => {
@@ -1640,13 +1670,15 @@ function renderSyncSection() {
 // Shows changes from other devices, unless the user is in the middle of
 // something (a form or a sheet); then they appear on the next navigation.
 let staleView = false;
+let keepDrawn = false; // redraw lists as far as they were drawn
 async function refreshAfterRemoteChange() {
   await repo.loadAll();
   const onMap = listState.view === 'map' && /^#\/?(totry|visited)?$/.test(location.hash || '#/');
   const editing = sheet.open || onMap || /^#\/(new|edit\/|settings|checkin)/.test(location.hash);
   if (editing) { staleView = true; return; }
   const y = window.scrollY;
-  render();
+  keepDrawn = true;
+  try { render(); } finally { keepDrawn = false; }
   window.scrollTo(0, y);
 }
 

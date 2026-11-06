@@ -12,7 +12,9 @@ const imageURLs = new Map(); // file path → object URL
 export async function loadAll() {
   restaurants.clear();
   // places/, and restaurants/ from before 2.0.0 until renameAll moves them.
-  for (const rec of await store.listFiles()) {
+  // Only the place files: reading the whole store would read the images too.
+  const records = [...await store.listFiles(PLACE_DIR), ...await store.listFiles(LEGACY_DIR)];
+  for (const rec of records) {
     if (!isPlaceFile(rec.path)) continue;
     try {
       restaurants.set(rec.path, fromMarkdown(rec.path, new TextDecoder().decode(rec.bytes)));
