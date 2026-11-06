@@ -766,7 +766,7 @@ function renderEdit(path, params) {
   form.type.addEventListener('input', labelCuisine);
 
   if (!existing) {
-    setUpPlacePicker(form, labelCuisine);
+    setUpPlacePicker(form, labelCuisine, params.get('q') || '');
     form.toTry.addEventListener('change', () => { $('#visitNote').hidden = form.toTry.checked; });
   }
 
@@ -809,7 +809,8 @@ let pendingVisit = null; // { path, index }: open that visit (-1: a new one) on 
 // --- check in (the + on the Timeline) ---
 // The places right around you, closest first: the ones in your journal and
 // the ones OpenStreetMap knows. Tapping one records a visit for now and opens
-// it to add a rating, people and notes. "Not here?" leads to the full search.
+// it to add a rating, people and notes. The search box at the top filters
+// them as you type; Search (or "Not here?") leads to the full search.
 
 const CHECKIN_RADIUS = 600; // meters: "here" is a short walk at most
 
@@ -842,17 +843,41 @@ function renderCheckIn() {
     </header>
     <section class="place-picker checkin" id="checkinRoot">
       <div class="pull-hint" id="pullHint" aria-hidden="true"></div>
+      <form class="search-row" id="checkinSearch" role="search">
+        <input type="search" id="checkinQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
+      </form>
       <p class="muted small picker-status" id="checkinStatus" role="status">Finding places around you…</p>
       <ul class="place-list" id="checkinList"></ul>
       <p class="muted small place-credit" id="checkinCredit"></p>
-      <a class="text-btn custom-place" href="#/new">Not here? Search for a place</a>
+      <a class="text-btn custom-place" href="#/new" id="checkinMore">Not here? Search for a place</a>
     </section>`;
   const list = $('#checkinList');
   const status = $('#checkinStatus');
+  const input = $('#checkinQuery');
   const journal = repo.all();
   let shown = [];
+  let lastDraw = null; // [here, nearby], to filter again as you type
+  let note = '';       // what the status says without a search
+  let nearest = [];    // all of them, closest first, before filtering
+
+  // The full search, with what was typed.
+  const searchLink = () => {
+    const q = input.value.trim();
+    return q ? `#/new?q=${encodeURIComponent(q)}` : '#/new';
+  };
+  const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  const showStatus = (text) => {
+    note = text;
+    const q = input.value.trim();
+    if (!q || !lastDraw) { status.textContent = text; return; }
+    status.textContent = shown.length
+      ? `Press Search to look further for “${q}”.`
+      : `Nothing around you matches “${q}”. Press Search to look further.`;
+  };
 
   const draw = (here, nearby) => {
+    lastDraw = [here, nearby];
     const covered = new Set();
     const places = nearby.map((p) => {
       const mine = findInJournal(p, journal);
@@ -864,9 +889,16 @@ function renderCheckIn() {
       places.push({ id: `journal:${r.path}`, name: r.name, lat: r.lat, lon: r.lon, address: [r.address, r.city].filter(Boolean).join(', '), mine: r });
     }
     const close = places.map((p) => ({ ...p, distance: distance(here, p) })).sort((a, b) => a.distance - b.distance);
-    // Very close first; if little is that close, the nearest ten anyway.
-    shown = close.filter((p) => p.distance <= CHECKIN_RADIUS);
-    if (shown.length < 3) shown = close.slice(0, 10);
+    nearest = close;
+    const q = fold(input.value.trim());
+    if (q) {
+      // Typed: any of them whose name (or kind) matches, however far.
+      shown = close.filter((p) => fold(`${p.mine?.name || p.name} ${p.kind || ''} ${p.cuisine || ''}`).includes(q));
+    } else {
+      // Very close first; if little is that close, the nearest ten anyway.
+      shown = close.filter((p) => p.distance <= CHECKIN_RADIUS);
+      if (shown.length < 3) shown = close.slice(0, 10);
+    }
     shown = shown.slice(0, 40);
     list.innerHTML = shown.map((p, i) => `
       <li${p.mine ? ' class="in-journal"' : ''}><button type="button" data-i="${i}">
@@ -878,6 +910,17 @@ function renderCheckIn() {
     $('#checkinCredit').innerHTML = shown.some((p) => !p.id.startsWith('journal:'))
       ? `Places © <a href="${OSM_COPYRIGHT}" target="_blank" rel="noopener">OpenStreetMap contributors</a>` : '';
   };
+
+  input.addEventListener('input', () => {
+    $('#checkinMore').href = searchLink();
+    if (!lastDraw) return; // no location: Search still works
+    draw(...lastDraw);
+    showStatus(note);
+  });
+  $('#checkinSearch').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value.trim()) location.hash = searchLink();
+  });
 
   list.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-i]');
@@ -892,7 +935,7 @@ function renderCheckIn() {
   const load = async ({ fresh = false } = {}) => {
     const run = ++loads;
     const current = () => run === loads && $('#checkinList');
-    status.textContent = fresh ? 'Finding where you are…' : 'Finding places around you…';
+    showStatus(fresh ? 'Finding where you are…' : 'Finding places around you…');
     const here = await locate({ fresh });
     if (!current()) return; // left the screen, or a newer load
     if (!here) {
@@ -902,7 +945,7 @@ function renderCheckIn() {
       return;
     }
     draw(here, []);
-    status.textContent = navigator.onLine ? 'Finding places around you…' : 'You are offline: only places in your journal.';
+    showStatus(navigator.onLine ? 'Finding places around you…' : 'You are offline: only places in your journal.');
     if (!navigator.onLine) return;
     try {
       // First the small area right around you (so the nearest places aren't
@@ -912,16 +955,16 @@ function renderCheckIn() {
       if (!current()) return;
       const close = nearby.filter((p) => distance(here, p) <= CHECKIN_RADIUS).length;
       if (close < 3) {
-        status.textContent = `${close ? 'Little' : 'Nothing'} on OpenStreetMap within about ${formatDistance(CHECKIN_RADIUS)}; looking a little further…`;
+        showStatus(`${close ? 'Little' : 'Nothing'} on OpenStreetMap within about ${formatDistance(CHECKIN_RADIUS)}; looking a little further…`);
         const wider = await nearbyPlaces(here, (sofar) => { if (current()) draw(here, [...nearby, ...sofar]); });
         if (!current()) return;
         nearby = [...nearby, ...wider.filter((w) => !nearby.some((n) => n.id === w.id))];
       }
       draw(here, nearby);
-      status.textContent = !shown.length ? 'Nothing found around you. Search for a place instead.'
-        : shown[0].distance > CHECKIN_RADIUS ? `Nothing within about ${formatDistance(CHECKIN_RADIUS)}; the nearest places:` : '';
+      showStatus(!nearest.length ? 'Nothing found around you. Search for a place instead.'
+        : nearest[0].distance > CHECKIN_RADIUS ? `Nothing within about ${formatDistance(CHECKIN_RADIUS)}; the nearest places:` : '');
     } catch {
-      if (current()) status.textContent = 'Places around you are not available right now; showing the ones in your journal.';
+      if (current()) showStatus('Places around you are not available right now; showing the ones in your journal.');
     }
   };
 
@@ -1005,7 +1048,8 @@ function focusSearch(input) {
   keyboardBridge = null;
 }
 
-function setUpPlacePicker(form, onFill = () => {}) {
+// `query`: text to search for straight away (from the check-in screen's box).
+function setUpPlacePicker(form, onFill = () => {}, query = '') {
   const journal = repo.all();
   const picker = $('#placePicker');
   const input = $('#placeQuery');
@@ -1318,6 +1362,10 @@ function setUpPlacePicker(form, onFill = () => {}) {
   });
 
   loadNearby();
+  if (query) {
+    input.value = query;
+    $('#placeSearch').requestSubmit();
+  }
 }
 
 // --- settings ---

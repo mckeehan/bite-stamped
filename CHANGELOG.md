@@ -15,6 +15,15 @@ Versions follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH):
 Every release gets an entry here, server-only ones too. Newest first; the
 format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.0] - 2026-11-06
+
+### Added
+
+- Check in has a search box at the top, ready without tapping "Not here?":
+  typing narrows the list to the places whose name matches (from your
+  journal, however far, and those OpenStreetMap found around you); Search
+  opens the usual place search with what you typed, already searching.
+
 ## [2.4.1] - 2026-11-05
 
 ### Fixed

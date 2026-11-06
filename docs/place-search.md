@@ -38,8 +38,12 @@ within about 600 m, closest first, from your journal and from OpenStreetMap
 than three that close, it also searches about 3 km around and lists the
 nearest ten, saying that nothing is within 600 m. Tapping one records a visit for the current date and time
 straight away and opens it, to add a rating, people and notes. Offline, it
-lists the places in your journal only. "Not here? Search for a place" opens
-the usual search. Pulling the list down (or the refresh button at the top)
+lists the places in your journal only. The search box at the top narrows
+the list as you type (to the names that match, from your journal however far
+away, and from what OpenStreetMap found around you); pressing Search, or
+"Not here? Search for a place", opens the usual search with what you typed,
+searching straight away. The box doesn't take the keyboard by itself, so the
+list stays in view. Pulling the list down (or the refresh button at the top)
 looks again with a fresh location; the places OpenStreetMap knows are only
 fetched again once you have moved about 100 m, or after 10 minutes.
 
