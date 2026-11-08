@@ -58,7 +58,7 @@ is and the time, on this device only (they are not journal files, so they
 don't sync and aren't in exports). While there are any, the Timeline shows a
 button, "N offline check-ins to finish", which lists them (newest first, each
 with a Delete). Opening one, once you are back online, runs its search around
-where you were then, not where you are now, and lists the places nearby. The
+where you were then, not where you are now, and lists the places nearby. Its note at the top links to that spot in Apple Maps and Google Maps ("Where you were"), to see what was there. The
 visit gets the saved time: a new place gets a visit at that time, and for a
 place already in your journal, "Add visit" opens a visit with that date and
 time filled in. Once the visit is saved, the offline check-in is gone.

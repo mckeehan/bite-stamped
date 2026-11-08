@@ -519,6 +519,15 @@ async function openOfflineCheckIns() {
   });
 }
 
+// A point on a map (not directions to it): an offline check-in's location.
+function pointLinks(lat, lon, label) {
+  const ll = `${lat},${lon}`;
+  return [
+    ['Apple Maps', `https://maps.apple.com/?ll=${ll}&q=${encodeURIComponent(label)}`],
+    ['Google Maps', `https://www.google.com/maps/search/?api=1&query=${ll}`],
+  ];
+}
+
 // Keeps a check-in for later: what was typed, where the device is and when.
 async function saveOfflineCheckIn(query, button) {
   const date = now(); // the time of the check-in, not of finding the location
@@ -847,6 +856,11 @@ function renderEdit(path, params, resume = null) {
   const back = existing ? link(existing.path) : resume ? '#/' : r.toTry ? '#/totry' : homeOf(r);
   const visitDate = resume?.date || now();
   const checkingIn = !resume && params.get('checkin') === '1';
+  // Where an offline check-in was saved, to look at on a map.
+  const resumeMaps = resume && resume.lat !== null
+    ? `<span class="resume-maps">Where you were: ${pointLinks(resume.lat, resume.lon, resume.query || 'Offline check-in')
+      .map(([label, href]) => `<a href="${esc(href)}" target="_blank" rel="noopener">${label}</a>`).join(' · ')}</span>`
+    : '';
 
   main.innerHTML = `
     <header class="bar">
@@ -857,7 +871,7 @@ function renderEdit(path, params, resume = null) {
     ${existing ? '' : `
     <section class="place-picker" id="placePicker">
       ${resume ? `<p class="resume-note">Saved offline on <strong>${esc(formatDateTime(resume.date))}</strong>${
-        resume.lat === null ? '' : ', searching around where you were then'}. Pick the place to check in there at that time.</p>` : ''}
+        resume.lat === null ? '' : ', searching around where you were then'}. Pick the place to check in there at that time.${resumeMaps}</p>` : ''}
       <form class="search-row" id="placeSearch" role="search">
         <input type="search" id="placeQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
       </form>

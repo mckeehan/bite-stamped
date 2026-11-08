@@ -605,3 +605,5 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 .save-offline[hidden] { display: none; }
 .save-offline p { margin: 0; }
 .resume-note { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 0.9rem; }
+.resume-maps { display: block; margin-top: 6px; }
+.resume-maps a { color: var(--accent-text); font-weight: 600; }

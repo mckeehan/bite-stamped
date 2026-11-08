@@ -20,6 +20,15 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.12.0] - 2026-11-08
+
+### Added
+
+- Opening an offline check-in shows where you were when you saved it:
+  "Where you were: Apple Maps · Google Maps" opens that spot (its saved
+  location) in either map app, to see what was there. Not shown for a
+  check-in saved without a location.
+
 ## [2.11.0] - 2026-11-08
 
 ### Changed
