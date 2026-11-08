@@ -20,6 +20,26 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.11.0] - 2026-11-08
+
+### Changed
+
+- The visit sheet has an X in the top right instead of Cancel, and its
+  button at the bottom, full width: "Add to Journal" for a new visit. An
+  existing visit has "Delete" and "Update" side by side there (Delete was a
+  link at the end).
+- **The X takes a check-in back.** Checking in records the visit at once, so
+  Cancel used to leave it in the journal. Now the X removes that visit (and
+  the place, if the check-in added it; a place to try goes back on the list)
+  and returns to the Timeline. Tapping outside the sheet no longer closes a
+  check-in's sheet by mistake. For any other visit the X closes the sheet
+  without saving, as Cancel did.
+
+### Fixed
+
+- On an iPhone, the date and time fields of a visit were uneven, and the
+  time ran off the right edge. They are now two equal halves.
+
 ## [2.10.0] - 2026-11-06
 
 ### Added

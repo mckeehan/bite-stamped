@@ -37,7 +37,9 @@ within about 600 m, closest first, from your journal and from OpenStreetMap
 (the same kinds as above, first in that smaller area). Where there are fewer
 than three that close, it also searches about 3 km around and lists the
 nearest ten, saying that nothing is within 600 m. Tapping one records a visit for the current date and time
-straight away and opens it, to add a rating, people and notes. Offline, it
+straight away and opens it, to add a rating, people and notes ("Add to
+Journal" keeps them; the X in the corner takes the check-in back, removing the
+visit, and the place if the check-in added it). Offline, it
 lists the places in your journal only. The search box at the top narrows
 the list as you type (to the names that match, from your journal however far
 away, and from what OpenStreetMap found around you); pressing Search, or

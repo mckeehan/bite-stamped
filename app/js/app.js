@@ -116,9 +116,13 @@ function closeSheet() {
   sheet.innerHTML = '';
 }
 
+// A sheet with data-sticky (on the sheet) closes only through its own
+// buttons, not by tapping outside it or Escape.
 sheet.addEventListener('click', (e) => {
-  if (e.target === sheet || e.target.closest('[data-close]')) closeSheet();
+  if (e.target.closest('[data-close]') || (e.target === sheet && !sheet.dataset.sticky)) closeSheet();
 });
+sheet.addEventListener('cancel', (e) => { if (sheet.dataset.sticky) e.preventDefault(); });
+sheet.addEventListener('close', () => { delete sheet.dataset.sticky; });
 
 function pickFiles({ multiple = false, capture = false } = {}) {
   return new Promise((resolve) => {
@@ -192,6 +196,7 @@ const ICONS = {
   add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   directions: '<svg viewBox="0 0 24 24"><path d="M3.5 11 20.5 3.5 13 20.5l-2-7.5-7.5-2Z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   offline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7.6A5.5 5.5 0 0 1 17 10a4 4 0 0 1 2.4 6.8M16 18H7a4 4 0 0 1-1.3-7.8M3.5 3.5l17 17"/></svg>',
 };
 
@@ -638,12 +643,15 @@ function peopleDatalist() {
 }
 
 // `date`: for a new visit, its time instead of now; `offlineId`: the offline
-// check-in it finishes, done once the visit is saved.
-function editVisit(r, index, { date = '', offlineId = '' } = {}) {
+// check-in it finishes, done once the visit is saved; `checkIn`: the visit
+// at `index` was just recorded by a check-in ({ created, wasToTry, date }),
+// so the X takes it back.
+function editVisit(r, index, { date = '', offlineId = '', checkIn = null } = {}) {
   const v = r.visits[index] || { date: date || now(), rating: 0, people: [], notes: '' };
+  const isNew = index < 0 || !!checkIn;
   openSheet(`
     <form method="dialog" class="sheet-form">
-      <header><button type="button" class="text-btn" data-close>Cancel</button><h2>${index < 0 ? 'New visit' : 'Visit'}</h2><button class="text-btn strong" value="save">Save</button></header>
+      <header class="sheet-head"><span></span><h2>${checkIn ? 'Check-in' : index < 0 ? 'New visit' : 'Visit'}</h2><button type="button" class="icon-btn" id="closeVisit" aria-label="${checkIn ? 'Cancel check-in' : 'Close without saving'}">${ICONS.close}</button></header>
       <div class="row date-time">
         <label class="grow">Date <input type="date" name="date" value="${esc(v.date.slice(0, 10))}" required></label>
         <label class="grow">Time <input type="time" name="time" value="${esc(v.date.slice(11, 16))}"></label>
@@ -656,9 +664,17 @@ function editVisit(r, index, { date = '', offlineId = '' } = {}) {
         ${peopleDatalist()}
       </div>
       <label>Notes <textarea name="notes" rows="4">${esc(v.notes)}</textarea></label>
-      ${index >= 0 ? '<button type="button" class="text-btn danger" id="del">Delete visit</button>' : ''}
+      <div class="sheet-actions">
+        ${isNew ? '' : '<button type="button" class="btn danger" id="del">Delete</button>'}
+        <button class="btn primary" value="save">${isNew ? 'Add to Journal' : 'Update'}</button>
+      </div>
     </form>`, (dlg) => {
     const form = $('form', dlg);
+    if (checkIn) dlg.dataset.sticky = '1';
+    $('#closeVisit', dlg).addEventListener('click', async () => {
+      closeSheet();
+      if (checkIn) await undoCheckIn(r.path, checkIn);
+    });
     const people = [...v.people];
     const drawPeople = () => {
       $('#people', dlg).innerHTML = people.map((p) => `<span class="tag removable" data-person="${esc(p)}">${esc(p)} ×</span>`).join('');
@@ -953,12 +969,27 @@ async function checkIn(place) {
       lat: Number.isFinite(place.lat) ? place.lat : null, lon: Number.isFinite(place.lon) ? place.lon : null,
     });
   }
+  const wasToTry = !!r.toTry;
   r.visits = [visit, ...r.visits];
   r.toTry = false; // been there now
   const saved = await repo.save(r);
   toast(`Checked in at ${saved.name}`);
-  pendingVisit = { path: saved.path, index: 0 };
+  pendingVisit = { path: saved.path, index: 0, checkIn: { created: !place.mine, wasToTry, date: visit.date } };
   location.replace(link(saved.path));
+}
+
+// The X on a check-in's visit: as if it hadn't happened. The visit goes; a
+// place the check-in added goes too, and a place to try is one again.
+async function undoCheckIn(path, { created, wasToTry, date }) {
+  const r = repo.get(path);
+  if (r) {
+    const i = r.visits.findIndex((v) => v.date === date);
+    const visits = r.visits.filter((_, j) => j !== (i < 0 ? 0 : i));
+    if (created && !visits.length) await repo.remove(r);
+    else await repo.save({ ...r, visits, toTry: wasToTry || r.toTry });
+  }
+  toast('Check-in cancelled');
+  location.replace('#/');
 }
 
 function renderCheckIn() {
