@@ -17,8 +17,8 @@ format follows [Keep a Changelog](https://keepachangelog.com/).
 
 The commit of each release is tagged in git with its version, `vX.Y.Z`
 (e.g. `git checkout v2.7.1`). Versions released together with a later one,
-without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
-have no tag.
+without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
+2.12.1), have no tag.
 
 ## [2.13.0] - 2026-11-11
 
