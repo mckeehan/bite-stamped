@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url';
 const out = fileURLToPath(new URL('../app/icons/', import.meta.url));
 mkdirSync(out, { recursive: true });
 
-const BG = [0xc2, 0x41, 0x0c];
+const BG = [0xbd, 0x08, 0x1c];
 const WHITE = [0xff, 0xff, 0xff];
-const RIM = [0xfd, 0xe8, 0xdc];
+const RIM = [0xfd, 0xe8, 0xea];
 
 // Layers in 512-unit space, painted in order; each is [color, inside(x, y)].
 const circle = (cx, cy, r) => (x, y) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
@@ -125,12 +125,12 @@ function crc32(buf) {
 const pinPath = `M ${(PIN.cx - tangent.dx).toFixed(1)} ${tangent.y.toFixed(1)} A ${PIN.r} ${PIN.r} 0 1 1 ${(PIN.cx + tangent.dx).toFixed(1)} ${tangent.y.toFixed(1)} L ${PIN.cx} ${PIN.tipY} Z`;
 const dash = (2 * Math.PI * 212.5) / DASHES;
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<rect width="512" height="512" rx="112" fill="#c2410c"/>
+<rect width="512" height="512" rx="112" fill="#bd081c"/>
 <g transform="translate(256 256) scale(0.8) translate(-256 -256)">
 <circle cx="256" cy="256" r="212.5" fill="none" stroke="#fff" stroke-width="15" stroke-dasharray="${(dash * DUTY).toFixed(2)} ${(dash * (1 - DUTY)).toFixed(2)}"/>
-<circle cx="256" cy="256" r="188.5" fill="none" stroke="#fde8dc" stroke-width="7"/>
+<circle cx="256" cy="256" r="188.5" fill="none" stroke="#fde8ea" stroke-width="7"/>
 <path d="${pinPath}" fill="#fff"/>
-<polyline points="${CHECK.map((p) => p.join(',')).join(' ')}" fill="none" stroke="#c2410c" stroke-width="${CHECK_WIDTH}" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="${CHECK.map((p) => p.join(',')).join(' ')}" fill="none" stroke="#bd081c" stroke-width="${CHECK_WIDTH}" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
 </svg>
 `;

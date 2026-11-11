@@ -20,6 +20,27 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0),
 have no tag.
 
+## [2.13.0] - 2026-11-11
+
+### Added
+
+- Settings → Appearance: Light, Dark or Follow device (the default, as
+  before). The choice is kept on each device, not synced, and applies as the
+  app opens, without a flash of the other theme. The browser's bar colour
+  and the Foursquare logo follow the chosen theme too.
+
+## [2.12.1] - 2026-11-11
+
+### Changed
+
+- New colours: red (#bd081c), black (#111111) and white, instead of orange
+  on cream. The light theme has a white page, black text and red buttons and
+  links; the dark theme a #111 page, white text and a lighter red (#bd081c
+  is too dark to read on black). Stars are red too, and Delete buttons a
+  darker red than Save. All text keeps at least 4.5:1 contrast.
+- The app icon is red instead of orange. On an iPhone the home screen keeps
+  the old icon until the app is added to it again.
+
 ## [2.12.0] - 2026-11-08
 
 ### Added

@@ -1,40 +1,63 @@
+/* Colours: red #bd081c, near-black #111111 and white, with greys between
+   them. Light: white page, black text, red for actions. Dark: #111 page,
+   white text, and a lighter red, as #bd081c is too dark to read on #111. */
 :root {
-  --bg: #fbf7f2;
-  --surface: #ffffff;
-  --text: #1c1917;
-  --muted: #6b645f;
-  --line: #e7e0d8;
-  --field-border: #8f877f; /* edges of inputs: 3:1 against the page */
-  --accent: #c2410c;
-  --accent-soft: #fde8dc;
-  --accent-text: #ad3b0d; /* accent text on --accent-soft */
+  --bg: #ffffff;
+  --surface: #f5f5f5;
+  --text: #111111;
+  --muted: #5f5f5f;
+  --line: #e2e2e2;
+  --field-border: #8a8a8a; /* edges of inputs: 3:1 against the page */
+  --accent: #bd081c;
+  --accent-soft: #fde8ea;
+  --accent-text: #a30718; /* accent text on --accent-soft */
   --on-accent: #ffffff;
-  --star: #b45309;
-  --star-off: #e7e0d8;
-  --danger: #b91c1c;
+  --star: #bd081c;
+  --star-off: #e2e2e2;
+  --danger: #8a0614; /* darker than the accent, so Delete isn't the same red as Save */
   --radius: 14px;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 8px rgb(0 0 0 / 0.04);
   color-scheme: light dark;
 }
 
+/* Dark: with the device in dark mode (unless Light is chosen in Settings),
+   or when Dark is chosen. The same tokens twice; CSS can't say "or" here. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1c1917;
-    --surface: #292524;
-    --text: #f5f5f4;
-    --muted: #a8a29e;
-    --line: #3f3a36;
-    --field-border: #78716c;
-    --accent: #fb923c;
-    --accent-soft: #43281a;
-    --accent-text: #fb923c;
-    --on-accent: #1c1917;
-    --star: #f59e0b;
-    --star-off: #4a4440;
-    --danger: #f87171;
+  :root:not([data-theme="light"]) {
+    --bg: #111111;
+    --surface: #1f1f1f;
+    --text: #ffffff;
+    --muted: #a6a6a6;
+    --line: #333333;
+    --field-border: #737373;
+    --accent: #f0475a;
+    --accent-soft: #3b0a11;
+    --accent-text: #f4707f;
+    --on-accent: #111111;
+    --star: #f0475a;
+    --star-off: #3d3d3d;
+    --danger: #ff9e9e;
     --shadow: none;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #111111;
+  --surface: #1f1f1f;
+  --text: #ffffff;
+  --muted: #a6a6a6;
+  --line: #333333;
+  --field-border: #737373;
+  --accent: #f0475a;
+  --accent-soft: #3b0a11;
+  --accent-text: #f4707f;
+  --on-accent: #111111;
+  --star: #f0475a;
+  --star-off: #3d3d3d;
+  --danger: #ff9e9e;
+  --shadow: none;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 
@@ -333,6 +356,17 @@ html:has(.checkin) { overscroll-behavior-y: contain; }
 .place-credit { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .fsq-credit { display: inline-block; line-height: 0; }
 .fsq-credit img { height: 28px; width: auto; }
+/* The light or dark logo, following the theme in use (not only the device's). */
+.fsq-credit .on-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fsq-credit .on-light { display: none; }
+  :root:not([data-theme="light"]) .fsq-credit .on-dark { display: inline; }
+}
+:root[data-theme="dark"] .fsq-credit .on-light { display: none; }
+:root[data-theme="dark"] .fsq-credit .on-dark { display: inline; }
+.segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.segmented button { min-height: 40px; border: 0; border-radius: 9px; background: none; color: var(--text); font-size: 0.95rem; cursor: pointer; }
+.segmented button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .fsq-place { margin: 8px 0 0; }
 .place-list .fsq-link { display: inline-block; margin: -6px 0 10px; font-size: 0.85rem; }
 .place-list li.in-journal .fsq-link { margin-left: 10px; }
@@ -464,7 +498,7 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 .map {
   position: relative;
   overflow: hidden;
-  background: #e8e4dc;
+  background: #e5e5e5;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -508,7 +542,7 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
 }
 .map-pin.selected { transform-origin: 50% 100%; }
-.map-pin.selected::before { background: #1c1917; border-color: var(--accent); }
+.map-pin.selected::before { background: #111111; border-color: var(--accent); }
 .map-pin::after {
   content: '';
   position: absolute;

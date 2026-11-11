@@ -21,9 +21,10 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const OSM_COPYRIGHT = 'https://www.openstreetmap.org/copyright';
 // "Powered by Foursquare", as Foursquare's brand guidelines ask, light or dark.
-const POWERED_BY_FOURSQUARE = `<a class="fsq-credit" href="https://foursquare.com" target="_blank" rel="noopener"><picture>
-  <source srcset="icons/powered-by-foursquare-dark.svg" media="(prefers-color-scheme: dark)">
-  <img src="icons/powered-by-foursquare.svg" alt="Powered by Foursquare" width="161" height="28"></picture></a>`;
+// Both logos; app.css shows the one for the theme in use.
+const POWERED_BY_FOURSQUARE = `<a class="fsq-credit" href="https://foursquare.com" target="_blank" rel="noopener">
+  <img class="on-light" src="icons/powered-by-foursquare.svg" alt="Powered by Foursquare" width="161" height="28">
+  <img class="on-dark" src="icons/powered-by-foursquare-dark.svg" alt="Powered by Foursquare" width="161" height="28"></a>`;
 const link = (path) => `#/r/${encodeURIComponent(path)}`;
 // What kind of place, in a few words for cards: the cuisine (or category), else the type.
 const kindLine = (r) => r.cuisine || r.type;
@@ -1582,6 +1583,10 @@ function releaseLine() {
   return `${APP_NAME} version ${release.version} · released ${formatDate(release.date, 'long')}`;
 }
 
+// Light, dark or the device's setting (js/theme.js applies it).
+const appearance = self.BITE_STAMPED_APPEARANCE || { get: () => 'auto', set() {} };
+const APPEARANCES = [['light', 'Light'], ['dark', 'Dark'], ['auto', 'Follow device']];
+
 async function renderSettings() {
   setTitle('Settings');
   const all = repo.all();
@@ -1600,6 +1605,13 @@ async function renderSettings() {
         ? 'Storage is marked as persistent, so the browser will not clear it to free space.'
         : 'The browser may clear this data if the device runs low on space. Add the app to your Home Screen and export a backup now and then.'}</p>
       ${est.persisted ? '' : '<button class="btn" id="persist">Ask to keep data permanently</button>'}
+    </section>
+    <section class="block">
+      <h2>Appearance</h2>
+      <div class="segmented" role="group" aria-label="Appearance">${APPEARANCES.map(([mode, label]) => `
+        <button type="button" data-appearance="${mode}" aria-pressed="${appearance.get() === mode}">${label}</button>`).join('')}
+      </div>
+      <p class="muted small">On this device only.</p>
     </section>
     <section class="block" id="syncSection"></section>
     <section class="block" id="calendarSection" hidden></section>
@@ -1626,6 +1638,10 @@ async function renderSettings() {
   renderSyncSection();
   renderCalendarSection();
 
+  for (const b of $$('[data-appearance]')) b.addEventListener('click', () => {
+    appearance.set(b.dataset.appearance);
+    for (const o of $$('[data-appearance]')) o.setAttribute('aria-pressed', String(o === b));
+  });
   $('#persist')?.addEventListener('click', async () => {
     const ok = await repo.requestPersistence();
     toast(ok ? 'Data will be kept' : 'The browser said no (installing the app usually helps)');
