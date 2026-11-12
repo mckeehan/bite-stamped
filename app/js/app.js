@@ -112,6 +112,24 @@ function openSheet(html, onReady) {
   hydrateImages(sheet);
 }
 
+// The × in a search box (.search-field): empties it and sends an 'input'
+// event, so the screen reacts as if the text had been deleted. It only shows
+// while there is text (app.css). The keyboard stays up if it was up.
+let clearKeepsFocus = false;
+document.addEventListener('pointerdown', (e) => {
+  const field = e.target.closest?.('.search-clear')?.parentElement;
+  clearKeepsFocus = !!field && document.activeElement === field.querySelector('input');
+});
+document.addEventListener('click', (e) => {
+  const button = e.target.closest?.('.search-clear');
+  if (!button) return;
+  const input = button.parentElement.querySelector('input');
+  input.value = '';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  if (clearKeepsFocus) input.focus();
+  clearKeepsFocus = false;
+});
+
 function closeSheet() {
   sheet.close();
   sheet.innerHTML = '';
@@ -198,6 +216,7 @@ const ICONS = {
   directions: '<svg viewBox="0 0 24 24"><path d="M3.5 11 20.5 3.5 13 20.5l-2-7.5-7.5-2Z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  clear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg>',
   offline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7.6A5.5 5.5 0 0 1 17 10a4 4 0 0 1 2.4 6.8M16 18H7a4 4 0 0 1-1.3-7.8M3.5 3.5l17 17"/></svg>',
 };
 
@@ -275,7 +294,7 @@ function renderList(tab) {
         : `<a class="icon-btn" href="#/new${tab === 'totry' ? '?totry=1' : ''}" aria-label="Add place">${ICONS.add}</a>`}
     </header>
     <div class="list-tools">
-      <input type="search" id="q" placeholder="Search places, dishes, people…" value="${esc(listState.query)}" autocomplete="off">
+      <span class="search-field"><input type="search" id="q" placeholder="Search places, dishes, people…" value="${esc(listState.query)}" autocomplete="off"><button type="button" class="search-clear" aria-label="Clear search">${ICONS.clear}</button></span>
       ${tab === 'timeline' ? '<button type="button" class="btn offline-btn" id="offlineBtn" hidden></button>' : ''}
       <p class="muted small sort-note" id="sortNote"></p>
     </div>
@@ -874,7 +893,7 @@ function renderEdit(path, params, resume = null) {
       ${resume ? `<p class="resume-note">Saved offline on <strong>${esc(formatDateTime(resume.date))}</strong>${
         resume.lat === null ? '' : ', searching around where you were then'}. Pick the place to check in there at that time.${resumeMaps}</p>` : ''}
       <form class="search-row" id="placeSearch" role="search">
-        <input type="search" id="placeQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
+        <span class="search-field"><input type="search" id="placeQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place"><button type="button" class="search-clear" aria-label="Clear search">${ICONS.clear}</button></span>
       </form>
       ${checkingIn ? SAVE_OFFLINE : ''}
       <p class="muted small picker-status" id="placeStatus"></p>
@@ -1018,7 +1037,7 @@ function renderCheckIn() {
     <section class="place-picker checkin" id="checkinRoot">
       <div class="pull-hint" id="pullHint" aria-hidden="true"></div>
       <form class="search-row" id="checkinSearch" role="search">
-        <input type="search" id="checkinQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place">
+        <span class="search-field"><input type="search" id="checkinQuery" placeholder="Search for a place" autocomplete="off" enterkeyhint="search" aria-label="Search for a place"><button type="button" class="search-clear" aria-label="Clear search">${ICONS.clear}</button></span>
       </form>
       ${SAVE_OFFLINE}
       <p class="muted small picker-status" id="checkinStatus" role="status">Finding places around you…</p>

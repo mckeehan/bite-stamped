@@ -20,6 +20,15 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.14.0] - 2026-11-12
+
+### Added
+
+- The search boxes (Timeline, Visited and To Try; Check in; New place) have
+  an × at the right while there is text in them. Tapping it empties the box
+  and the list goes back to what it showed before you typed. The keyboard
+  stays up if it was up.
+
 ## [2.13.0] - 2026-11-11
 
 ### Added

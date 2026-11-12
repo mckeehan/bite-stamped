@@ -307,6 +307,29 @@ label.check { display: flex; align-items: center; gap: 10px; color: var(--text);
 
 .place-picker { display: grid; gap: 4px; }
 .search-row input { width: 100%; }
+/* A search box with a × to clear it, shown only while there is text (every
+   search box has a placeholder, so :placeholder-shown means empty). */
+.search-field { position: relative; display: block; }
+.search-field input { padding-right: 44px; }
+.search-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.search-clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.search-clear svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.search-field input:placeholder-shown + .search-clear { display: none; }
 .picker-status:empty { display: none; }
 .picker-status { margin: 4px 2px; }
 .place-list { list-style: none; margin: 0; padding: 0; }
