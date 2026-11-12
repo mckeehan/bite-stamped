@@ -303,17 +303,8 @@ export function imagesOf(r) {
   return [...r.photos.map((p) => p.file), ...r.dishes.map((m) => m.image)].filter(Boolean);
 }
 
-export function matches(r, query) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const hay = [
-    r.name, r.type, r.cuisine, r.city, r.state, r.country, r.address, r.notes, ...r.tags,
-    ...r.dishes.map((m) => m.name),
-    ...r.visits.flatMap((v) => [...v.people, v.notes]),
-    ...r.photos.map((p) => p.title),
-  ].join('\n').toLowerCase();
-  return q.split(/\s+/).every((word) => hay.includes(word));
-}
+// The list search, with field filters like tag:brunch (search.js).
+export { matches } from './search.js';
 
 // The first line of a place's notes as plain text, for a list card: Markdown
 // marks (headings, lists, quotes, emphasis, links) left out. '' without notes.

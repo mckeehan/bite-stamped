@@ -161,6 +161,13 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+/* Suggestions under the list search: values of a field (tag:…), or fields. */
+.search-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: -4px; }
+.search-suggest[hidden] { display: none; }
+.search-suggest p { margin: 0; }
+.search-suggest .chip { color: var(--text); }
+.search-suggest .chip small { color: var(--muted); margin-left: 2px; }
+.search-suggest .chip.field { font-weight: 600; color: var(--accent-text); background: var(--accent-soft); border-color: transparent; }
 
 /* --- stars --- */
 

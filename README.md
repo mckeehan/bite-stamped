@@ -17,6 +17,8 @@ build step, no dependencies at all.
 - Photos with a title and date; any photo can be the cover
 - A "Timeline" of every visit by day, plus "Visited" and "To Try" lists, sorted by name, last visit, rating, visits, date
   added or distance, or shown on a map (OpenStreetMap)
+- [Search the lists](docs/search.md) by any word, or in one field with
+  suggestions as you type: `tag:brunch`, `with:anna`, `city:knox`
 - Adding a place lists places nearby (food and drink, museums, sights) and [searches by name](docs/place-search.md)
   through OpenStreetMap, with Foursquare as an optional fallback (online only,
   like the map images; everything else works offline)

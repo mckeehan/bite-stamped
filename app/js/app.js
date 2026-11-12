@@ -6,6 +6,7 @@ import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, addressAt } from './places.js';
 import { createMap } from './map.js';
 import * as offline from './offline.js';
+import { FIELDS, suggest, applySuggestion } from './search.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
 import { createSync } from './sync.js';
@@ -294,7 +295,8 @@ function renderList(tab) {
         : `<a class="icon-btn" href="#/new${tab === 'totry' ? '?totry=1' : ''}" aria-label="Add place">${ICONS.add}</a>`}
     </header>
     <div class="list-tools">
-      <span class="search-field"><input type="search" id="q" placeholder="Search places, dishes, people…" value="${esc(listState.query)}" autocomplete="off"><button type="button" class="search-clear" aria-label="Clear search">${ICONS.clear}</button></span>
+      <span class="search-field"><input type="search" id="q" placeholder="Search places, dishes, people…" value="${esc(listState.query)}" autocomplete="off" aria-describedby="qSuggest"><button type="button" class="search-clear" aria-label="Clear search">${ICONS.clear}</button></span>
+      <div class="search-suggest" id="qSuggest" aria-live="polite" hidden></div>
       ${tab === 'timeline' ? '<button type="button" class="btn offline-btn" id="offlineBtn" hidden></button>' : ''}
       <p class="muted small sort-note" id="sortNote"></p>
     </div>
@@ -466,7 +468,57 @@ function renderList(tab) {
     if (pos && sort() === 'nearest' && listState.view === 'list') fillList();
   };
 
-  $('#q').addEventListener('input', (e) => { listState.query = e.target.value; fill(); });
+  // Suggestions under the search box (search.js): while typing tag:, with:,
+  // city:… the values of that field among this tab's places; with the box
+  // empty, or part of a field's name typed, the fields themselves.
+  const q = $('#q');
+  const suggestBox = $('#qSuggest');
+  const tabPlaces = everything.filter((r) => (tab === 'timeline' ? r.visits.length > 0 : (tab === 'totry') === r.toTry));
+  let offered = null; // what Return picks: the first suggestion
+  const setQuery = (text) => {
+    q.value = text;
+    listState.query = text;
+    fill();
+    drawSuggestions();
+  };
+  const drawSuggestions = () => {
+    offered = null;
+    const text = q.value;
+    if (document.activeElement !== q) { suggestBox.hidden = true; return; }
+    const s = suggest(text, tabPlaces);
+    if (s) {
+      const name = FIELDS[s.field].label.toLowerCase();
+      if (s.values.length) offered = () => setQuery(applySuggestion(text, s, s.values[0].value));
+      suggestBox.innerHTML = s.values.length
+        ? s.values.map((v, i) => `<button type="button" class="chip" data-i="${i}">${esc(v.value)} <small>${v.count}</small></button>`).join('')
+        : `<p class="muted small">No ${esc(name)} here contains “${esc(text.slice(s.start).replace(/^[a-z]+:"?/i, ''))}”.</p>`;
+      for (const b of $$('[data-i]', suggestBox)) b.addEventListener('click', () => setQuery(applySuggestion(text, s, s.values[Number(b.dataset.i)].value)));
+      suggestBox.hidden = false;
+      return;
+    }
+    // The fields: all of them in an empty box, or those starting with the
+    // word being typed ("ta" → tag:).
+    const word = /(^|\s)([a-z]{2,})$/i.exec(text)?.[2]?.toLowerCase();
+    const fields = text.trim()
+      ? Object.keys(FIELDS).filter((f) => word && f.startsWith(word) && f !== word)
+      : ['tag', 'with', 'city', 'type', 'cuisine', 'dish']; // state: and name: work too, typed
+    if (!fields.length) { suggestBox.hidden = true; return; }
+    const start = text.trim() ? text.length - word.length : text.length;
+    suggestBox.innerHTML = `${text.trim() ? '' : '<span class="muted small">Search only in</span>'}${
+      fields.map((f) => `<button type="button" class="chip field" data-field="${f}">${f}:</button>`).join('')}`;
+    for (const b of $$('[data-field]', suggestBox)) b.addEventListener('click', () => setQuery(`${text.slice(0, start)}${b.dataset.field}:`));
+    if (text.trim()) offered = () => setQuery(`${text.slice(0, start)}${fields[0]}:`);
+    suggestBox.hidden = false;
+  };
+  // Tapping a suggestion mustn't take the focus (and the keyboard) away.
+  suggestBox.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+  q.addEventListener('input', () => { listState.query = q.value; fill(); drawSuggestions(); });
+  q.addEventListener('focus', drawSuggestions);
+  q.addEventListener('blur', () => { suggestBox.hidden = true; });
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && offered && !suggestBox.hidden) { e.preventDefault(); offered(); }
+    if (e.key === 'Escape' && !suggestBox.hidden) { e.preventDefault(); suggestBox.hidden = true; }
+  });
   $('#viewBtn').addEventListener('click', () => {
     listState.view = listState.view === 'map' ? 'list' : 'map';
     rememberList();

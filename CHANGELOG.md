@@ -20,6 +20,19 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.15.0] - 2026-11-12
+
+### Added
+
+- **Search in one field** on the Timeline, Visited and To Try:
+  `tag:brunch`, `with:anna`, `city:`, `state:`, `type:`, `cuisine:`, `dish:`,
+  `name:` look only there, matching part of the value
+  (`tag:night` finds "Date night"). After typing `tag:` (or another field),
+  the tags of the places on that tab show under the box, narrowing as you
+  type; tap one to search for it. With the box empty, the fields are
+  suggested. Plain words still search everything, now also ignoring accents,
+  and `"quoted words"` are found together. See docs/search.md.
+
 ## [2.14.0] - 2026-11-12
 
 ### Added
