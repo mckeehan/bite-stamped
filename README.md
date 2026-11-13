@@ -19,6 +19,8 @@ build step, no dependencies at all.
   added or distance, or shown on a map (OpenStreetMap)
 - [Search the lists](docs/search.md) by any word, or in one field with
   suggestions as you type: `tag:brunch`, `with:anna`, `city:knox`
+- [Find and merge duplicate places](docs/duplicates.md): the same address, or the
+  same or a similar name close by; visits, dishes and photos of both are kept
 - Adding a place lists places nearby (food and drink, museums, sights) and [searches by name](docs/place-search.md)
   through OpenStreetMap, with Foursquare as an optional fallback (online only,
   like the map images; everything else works offline)

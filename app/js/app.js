@@ -7,6 +7,7 @@ import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, add
 import { createMap } from './map.js';
 import * as offline from './offline.js';
 import { FIELDS, suggest, applySuggestion } from './search.js';
+import { findDuplicates, pairKey } from './duplicates.js';
 import { fileDate } from './images.js';
 import * as store from './store.js';
 import { createSync } from './sync.js';
@@ -1675,7 +1676,10 @@ async function renderSettings() {
       <p class="muted small">${est.persisted
         ? 'Storage is marked as persistent, so the browser will not clear it to free space.'
         : 'The browser may clear this data if the device runs low on space. Add the app to your Home Screen and export a backup now and then.'}</p>
-      ${est.persisted ? '' : '<button class="btn" id="persist">Ask to keep data permanently</button>'}
+      <div class="stack">
+        ${est.persisted ? '' : '<button class="btn" id="persist">Ask to keep data permanently</button>'}
+        <a class="btn" href="#/duplicates">Find duplicate places</a>
+      </div>
     </section>
     <section class="block">
       <h2>Appearance</h2>
@@ -1961,6 +1965,93 @@ window.addEventListener('offline', () => sync.sync());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync.sync(); });
 setInterval(() => { if (document.visibilityState === 'visible') sync.sync(); }, 5 * 60_000);
 
+// --- duplicates (Settings → Find duplicate places) ---
+// Pairs that look like the same place twice (duplicates.js), to merge or to
+// mark as not the same. "Not the same" is remembered on this device.
+
+const NOT_SAME = 'notDuplicates';
+
+async function renderDuplicates() {
+  setTitle('Duplicate places');
+  const notSame = new Set(await store.getMeta(NOT_SAME) || []);
+  const pairs = findDuplicates(repo.all(), notSame);
+  const meters = (m) => (m === null ? '' : m < 1000 ? `${m} m apart` : `${(m / 1609.34).toFixed(1)} miles apart`);
+  const summary = (r) => {
+    const last = lastVisit(r);
+    return r.toTry && !r.visits.length ? 'On your to-try list'
+      : `${r.visits.length} visit${r.visits.length === 1 ? '' : 's'}${last ? ` · last ${formatDate(last.slice(0, 10))}` : ''}`;
+  };
+  const placeRow = (r) => `
+    <a class="dup-place" href="${link(r.path)}">
+      <strong>${esc(r.name)}</strong>
+      <small>${esc([r.address, r.city].filter(Boolean).join(', ') || 'No address')}${r.type ? ` · ${esc(r.type)}` : ''}</small>
+      <small>${esc(summary(r))}</small>
+    </a>`;
+
+  main.innerHTML = `
+    <header class="bar">
+      <a class="icon-btn" href="#/settings" aria-label="Back to Settings"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+      <h1 class="center">Duplicate places</h1><span class="icon-btn"></span>
+    </header>
+    <p class="muted small">${pairs.length
+      ? `${pairs.length} pair${pairs.length === 1 ? '' : 's'} of places that may be the same place: the same address, or the same or a similar name close by. Merge them into one, or say they are not the same.`
+      : 'No places look like the same place twice.'}${notSame.size ? ` ${notSame.size} pair${notSame.size === 1 ? '' : 's'} you marked as not the same ${notSame.size === 1 ? 'is' : 'are'} left out. <button type="button" class="text-btn" id="showAll">Show them again</button>` : ''}</p>
+    <ul class="dup-list">${pairs.map((p, i) => `
+      <li class="dup-pair">
+        <p class="dup-why">${esc([...p.reasons, meters(p.meters)].filter(Boolean).join(' · '))}</p>
+        ${placeRow(p.a)}${placeRow(p.b)}
+        <div class="dup-actions">
+          <button type="button" class="btn" data-not-same="${i}">Not the same</button>
+          <button type="button" class="btn primary" data-merge="${i}">Merge…</button>
+        </div>
+      </li>`).join('')}
+    </ul>`;
+
+  $('#showAll')?.addEventListener('click', async () => {
+    await store.setMeta(NOT_SAME, []);
+    renderDuplicates();
+  });
+  for (const b of $$('[data-not-same]')) b.addEventListener('click', async () => {
+    const p = pairs[Number(b.dataset.notSame)];
+    notSame.add(pairKey(p.a, p.b));
+    await store.setMeta(NOT_SAME, [...notSame]);
+    toast('Marked as not the same');
+    renderDuplicates();
+  });
+  for (const b of $$('[data-merge]')) b.addEventListener('click', () => openMerge(pairs[Number(b.dataset.merge)]));
+
+  // Which place's name and details to keep; the one with more visits first.
+  function openMerge({ a, b }) {
+    const [first, second] = b.visits.length > a.visits.length ? [b, a] : [a, b];
+    const option = (r, checked) => `
+      <label class="merge-option">
+        <input type="radio" name="keep" value="${esc(r.path)}"${checked ? ' checked' : ''}>
+        <span><strong>${esc(r.name)}</strong><small>${esc([r.address, r.city, r.state].filter(Boolean).join(', '))}</small><small>${esc(summary(r))}</small></span>
+      </label>`;
+    openSheet(`
+      <form method="dialog" class="sheet-form">
+        <header class="sheet-head"><span></span><h2>Merge</h2><button type="button" class="icon-btn" data-close aria-label="Close without merging">${ICONS.close}</button></header>
+        <p class="small">Keep the name and details of:</p>
+        ${option(first, true)}${option(second, false)}
+        <p class="muted small">The other place is deleted. Its visits, dishes, photos, tags and notes move to the one you keep, and details that one lacks (phone, website…) are filled in from it. The same visit is kept only once.</p>
+        <div class="sheet-actions"><button class="btn primary" value="merge">Merge</button></div>
+      </form>`, (dlg) => {
+      $('form', dlg).addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const button = $('.sheet-actions .btn', dlg);
+        button.disabled = true;
+        button.textContent = 'Merging…';
+        const keepPath = $('input[name="keep"]:checked', dlg).value;
+        const [keep, other] = keepPath === a.path ? [a, b] : [b, a];
+        const merged = await repo.merge(repo.get(keep.path) || keep, repo.get(other.path) || other);
+        closeSheet();
+        toast(`Merged into ${merged.name}`);
+        renderDuplicates();
+      });
+    });
+  }
+}
+
 function notFound() {
   main.innerHTML = `<header class="bar"><a class="icon-btn" href="#/" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a></header>
     <p class="empty">This place does not exist (any more).</p>`;
@@ -2011,6 +2102,7 @@ function render() {
   if (parts[0] === 'new') return renderEdit(null, params);
   if (parts[0] === 'checkin') return renderCheckIn();
   if (parts[0] === 'settings') return renderSettings();
+  if (parts[0] === 'duplicates') return renderDuplicates();
   if (parts[0] === 'totry') return renderList('totry');
   if (parts[0] === 'visited') return renderList('visited');
   return renderList('timeline');

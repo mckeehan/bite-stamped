@@ -20,6 +20,19 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.16.0] - 2026-11-13
+
+### Added
+
+- **Find and merge duplicate places:** Settings → Find duplicate places
+  lists pairs that look like the same place twice: the same street address
+  ("Pkwy" and "Parkway" alike) with a similar name or the same kind of
+  place, or the same or a similar name close by. **Merge…** keeps the name
+  and details of the one you choose and moves the other's visits, dishes,
+  photos, tags and notes to it (the same visit only once); missing details
+  are filled in from the other. **Not the same** leaves a pair out on that
+  device. See docs/duplicates.md.
+
 ## [2.15.0] - 2026-11-12
 
 ### Added

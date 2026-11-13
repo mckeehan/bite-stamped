@@ -5,6 +5,7 @@ import * as store from './store.js';
 import { fromMarkdown, toMarkdown, placePath, fileBase, mediaDir, imagesOf, isPlaceFile, PLACE_DIR, LEGACY_DIR, MEDIA_DIR } from './model.js';
 import { createZip, readZip } from './zip.js';
 import { shrinkImage } from './images.js';
+import { mergePlaces } from './duplicates.js';
 
 const restaurants = new Map(); // path → restaurant
 const imageURLs = new Map(); // file path → object URL
@@ -91,6 +92,46 @@ export async function remove(r) {
   for (const file of imagesOf(r)) await store.deleteFile(file);
   for (const file of imagesOf(r)) forgetImage(file);
   restaurants.delete(r.path);
+}
+
+// Merges `other` into `keep` (duplicates.js: mergePlaces) and deletes
+// `other`. Its images move into `keep`'s folder first, so deleting it (or a
+// place later given its old name) can't take them along. Returns the merged
+// place.
+export async function merge(keep, other) {
+  const into = mediaDir(keep.path);
+  const taken = new Set((await store.listFiles(into)).map((f) => f.path));
+  const moved = new Map();
+  for (const file of new Set(imagesOf(other))) {
+    if (file.startsWith(into)) continue;
+    const blob = await store.readBlob(file);
+    if (!blob) continue; // not on this device: the reference stays as it is
+    const name = file.split('/').pop();
+    let target = `${into}${name}`;
+    for (let n = 2; taken.has(target); n++) target = `${into}${name.replace(/(\.[^.]*)?$/, `-${n}$1`)}`;
+    taken.add(target);
+    await store.writeFile(target, blob, blob.type);
+    moved.set(file, target);
+  }
+  const at = (file) => moved.get(file) || file;
+  const otherMoved = {
+    ...other,
+    photos: other.photos.map((p) => ({ ...p, file: at(p.file) })),
+    dishes: other.dishes.map((m) => ({ ...m, image: m.image ? at(m.image) : '' })),
+  };
+  const merged = await save(mergePlaces(keep, otherMoved));
+  // The other place's file, the images that moved, and any left over that the
+  // merged place doesn't use (a dish photo of a dish both had).
+  const used = new Set(imagesOf(merged));
+  await store.deleteFile(other.path);
+  for (const file of [...moved.keys(), ...imagesOf(other)]) {
+    if (!used.has(file)) { forgetImage(file); await store.deleteFile(file); }
+  }
+  for (const file of imagesOf(otherMoved)) {
+    if (!used.has(file)) { forgetImage(file); await store.deleteFile(file); }
+  }
+  restaurants.delete(other.path);
+  return merged;
 }
 
 // Stores an image for a restaurant (which must have been saved) and returns its path.
