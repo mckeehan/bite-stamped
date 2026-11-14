@@ -1382,6 +1382,16 @@ function setUpPlacePicker(form, onFill = () => {}, query = '', { at = null, visi
     return candidateList;
   };
 
+  // Search results and journal places together: places (not streets or
+  // towns) first, then the closest, wherever they came from. Without a
+  // location, as they are.
+  const closestFirst = (places) => {
+    if (!position) return places;
+    const isPlace = (p) => (p.venue || p.mine || p.source === 'foursquare' ? 0 : 1);
+    const away = (p) => p.distance ?? (Number.isFinite(p.lat) && Number.isFinite(p.lon) ? distance(position, p) : Infinity);
+    return places.map((p) => ({ ...p, distance: away(p) })).sort((a, b) => isPlace(a) - isPlace(b) || a.distance - b.distance);
+  };
+
   // Adding a place to try: places already in the journal only show up when
   // they match what was typed.
   const nearbyMatching = (q) => {
@@ -1413,6 +1423,7 @@ function setUpPlacePicker(form, onFill = () => {}, query = '', { at = null, visi
       // Restaurants from Foursquare go above results that are only streets or towns.
       const first = !before.some((p) => p.venue || p.mine);
       found = withoutDuplicates(first ? [...results, ...before] : [...before, ...results]);
+      if (!extend) found = closestFirst(found);
       foundFor = q;
       foursquareFor = q;
       const added = found.length - before.length;
@@ -1519,8 +1530,9 @@ function setUpPlacePicker(form, onFill = () => {}, query = '', { at = null, visi
     try {
       const results = await searchPlaces(q, at || undefined, { anywhere: anywhere() });
       if (input.value.trim() !== q) return;
-      // Nearby matches stay on top.
-      const both = withoutDuplicates([...nearbyMatching(q), ...results]);
+      // The journal's matches and the results together, closest first (a
+      // place you've been 13 miles away doesn't go above the one you're at).
+      const both = closestFirst(withoutDuplicates([...nearbyMatching(q), ...results]));
       if (!both.length && fallbackReady(q)) return runFallback(q);
       found = both;
       foundFor = q;

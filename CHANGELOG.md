@@ -20,6 +20,15 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.16.1] - 2026-11-14
+
+### Fixed
+- Searching when checking in or adding a place: places in your journal no
+  longer come above the search results however far away they are. Places
+  are shown closest first, wherever they came from (a place you have been
+  13 miles away no longer goes above the one you are standing at); streets
+  and towns still come after places.
+
 ## [2.16.0] - 2026-11-13
 
 ### Added
