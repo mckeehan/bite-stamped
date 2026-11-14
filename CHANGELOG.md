@@ -20,6 +20,26 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.17.0] - 2026-11-14
+
+### Added
+- Checking in lists every named business and place to visit within about
+  600 m (shops, banks, churches, offices, doctors, petrol stations, parks…),
+  not just places to eat and drink and sights. They come from
+  OpenStreetMap's Overpass API in one request and join the list when they
+  arrive, so the list shows up as quickly as before. Checking in at one of
+  them looks up its town first. The server allows the app to reach
+  `overpass-api.de` (restart it after updating).
+
+### Fixed
+- The check-in screen no longer moves the search box down when there are
+  few or no places to show: everything stays at the top.
+- When nothing on the check-in screen matches what you type, it says what
+  the list has (the places within about 600 m, and those in your journal)
+  and that Search looks for any kind of place within about 20 miles; the
+  link under the list reads "Not listed? Search for “…” within about 20
+  miles".
+
 ## [2.16.1] - 2026-11-14
 
 ### Fixed

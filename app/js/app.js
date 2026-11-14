@@ -3,7 +3,7 @@ import {
   newRestaurant, notePreview, isFoodPlace, placeSymbol, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
-import { searchPlaces, locate, nearbyPlaces, formatDistance, fallbackSearch, addressAt } from './places.js';
+import { searchPlaces, locate, nearbyPlaces, placesAround, formatDistance, fallbackSearch, addressAt } from './places.js';
 import { createMap } from './map.js';
 import * as offline from './offline.js';
 import { FIELDS, suggest, applySuggestion } from './search.js';
@@ -1043,11 +1043,22 @@ let pendingVisit = null; // { path, index }: open that visit (-1: a new one) on 
 // it to add a rating, people and notes. The search box at the top filters
 // them as you type; Search (or "Not here?") leads to the full search.
 
+const SEARCH_RANGE = 32000; // meters: about how far Search looks (places.js: searchPlaces)
 const CHECKIN_RADIUS = 600; // meters: "here" is a short walk at most
 
 async function checkIn(place) {
   const visit = { date: now(), rating: 0, people: [], notes: '' };
   let r = place.mine ? { ...place.mine } : null;
+  if (!r && !place.city && navigator.onLine && Number.isFinite(place.lat)) {
+    // (Places from places.js: placesAround often come without a town.)
+    try {
+      const found = await addressAt(place);
+      if (found) {
+        place = { ...place, street: place.street || found.street, city: found.city, state: place.state || found.state,
+          country: found.country, countryCode: place.countryCode || found.countryCode };
+      }
+    } catch {}
+  }
   if (!r) {
     r = newRestaurant({
       name: place.name, type: place.type || '', cuisine: place.cuisine || '',
@@ -1106,11 +1117,21 @@ function renderCheckIn() {
   let lastDraw = null; // [here, nearby], to filter again as you type
   let note = '';       // what the status says without a search
   let nearest = [];    // all of them, closest first, before filtering
+  let around = [];     // every business within CHECKIN_RADIUS (places.js: placesAround), once it arrives
 
   // The full search, with what was typed.
   const searchLink = () => {
     const q = input.value.trim();
     return q ? `#/new?checkin=1&q=${encodeURIComponent(q)}` : '#/new?checkin=1';
+  };
+  // How far Search looks (places.js: searchPlaces, about 0.3° either way).
+  const searchRange = `about ${formatDistance(SEARCH_RANGE)}`;
+  // The link under the list says what Search will look for, and how far.
+  const updateMore = () => {
+    const q = input.value.trim();
+    const more = $('#checkinMore');
+    more.href = searchLink();
+    more.textContent = q ? `Not listed? Search for “${q}” within ${searchRange}` : 'Not here? Search for a place';
   };
   const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
@@ -1122,12 +1143,14 @@ function renderCheckIn() {
     status.textContent = !searchable
       ? `${shown.length ? 'Only places in your journal' : `Nothing in your journal matches “${q}”`}: the place search is not available right now.`
       : shown.length
-      ? `Press Search to look further for “${q}”.`
-      : `Nothing around you matches “${q}”. Press Search to look further.`;
+      ? `Press Search to look for “${q}” within ${searchRange}.`
+      : `Nothing listed matches “${q}”. This list has the places OpenStreetMap knows within about ${formatDistance(CHECKIN_RADIUS)} and the places in your journal. Press Search to look for any kind of place within ${searchRange}.`;
   };
 
   const draw = (here, nearby) => {
     lastDraw = [here, nearby];
+    // The same place from both searches has the same id: Nominatim's (with the town) wins.
+    nearby = [...nearby, ...around.filter((a) => !nearby.some((n) => n.id === a.id))];
     const covered = new Set();
     const places = nearby.map((p) => {
       const mine = findInJournal(p, journal);
@@ -1162,7 +1185,7 @@ function renderCheckIn() {
   };
 
   input.addEventListener('input', () => {
-    $('#checkinMore').href = searchLink();
+    updateMore();
     if (!lastDraw) return; // no location: Search still works
     draw(...lastDraw);
     showStatus(note);
@@ -1196,17 +1219,32 @@ function renderCheckIn() {
       if (!navigator.onLine) offerOfflineSave();
       return;
     }
+    around = [];
     draw(here, []);
     offerOfflineSave(!navigator.onLine);
     showStatus(navigator.onLine ? 'Finding places around you…' : 'You are offline: only places in your journal.');
     if (!navigator.onLine) return;
+    // Every business close by (shops, banks, churches…), in one request to
+    // another service, alongside the kinds of places below: added to the
+    // list whenever it arrives, so a slow answer doesn't hold anything up.
+    let searching = true;   // the searches below still running
+    let aroundPending = true;
+    const finalNote = () => (!nearest.length ? 'Nothing found around you. Search for a place instead.'
+      : nearest[0].distance > CHECKIN_RADIUS ? `Nothing within about ${formatDistance(CHECKIN_RADIUS)}; the nearest places:`
+      : aroundPending ? 'Looking for more places around you…' : '');
+    placesAround(here, CHECKIN_RADIUS).then((found) => { around = found; }, () => {}).finally(() => {
+      aroundPending = false;
+      if (!current()) return;
+      draw(here, lastDraw?.[1] || []);
+      if (!searching) showStatus(finalNote());
+    });
     try {
       // First the small area right around you (so the nearest places aren't
       // crowded out where there are many); where OpenStreetMap has little
       // there, about 3 km around (the same search as when adding a place).
       let nearby = await nearbyPlaces(here, (sofar) => { if (current()) draw(here, sofar); }, { size: 0.006 });
       if (!current()) return;
-      const close = nearby.filter((p) => distance(here, p) <= CHECKIN_RADIUS).length;
+      const close = new Set([...nearby, ...around].filter((p) => distance(here, p) <= CHECKIN_RADIUS).map((p) => p.id)).size;
       if (close < 3) {
         showStatus(`${close ? 'Little' : 'Nothing'} on OpenStreetMap within about ${formatDistance(CHECKIN_RADIUS)}; looking a little further…`);
         const wider = await nearbyPlaces(here, (sofar) => { if (current()) draw(here, [...nearby, ...sofar]); });
@@ -1214,9 +1252,10 @@ function renderCheckIn() {
         nearby = [...nearby, ...wider.filter((w) => !nearby.some((n) => n.id === w.id))];
       }
       draw(here, nearby);
-      showStatus(!nearest.length ? 'Nothing found around you. Search for a place instead.'
-        : nearest[0].distance > CHECKIN_RADIUS ? `Nothing within about ${formatDistance(CHECKIN_RADIUS)}; the nearest places:` : '');
+      searching = false;
+      showStatus(finalNote());
     } catch {
+      searching = false;
       if (current()) {
         offerOfflineSave();
         showStatus('Places around you are not available right now; showing the ones in your journal.');

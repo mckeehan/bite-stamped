@@ -29,7 +29,7 @@ const SECURITY_HEADERS = {
   'Content-Security-Policy': [
     "default-src 'self'",
     "img-src 'self' blob: data: https://tile.openstreetmap.org",
-    "connect-src 'self' https://nominatim.openstreetmap.org",
+    "connect-src 'self' https://nominatim.openstreetmap.org https://overpass-api.de",
     "object-src 'none'",
     "base-uri 'none'",
     "frame-ancestors 'none'",

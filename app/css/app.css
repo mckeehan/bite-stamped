@@ -371,7 +371,10 @@ label.check { display: flex; align-items: center; gap: 10px; color: var(--text);
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .custom-place { justify-self: center; margin: 16px 0; }
 .more-places { justify-self: center; margin-top: 16px; }
-.checkin { min-height: calc(100dvh - 120px); }
+/* Tall enough to pull down anywhere; its rows stay at the top (a grid would
+   spread the spare height between them, moving the search box down when
+   there are few results). */
+.checkin { min-height: calc(100dvh - 120px); align-content: start; }
 /* The pull is the app's own here: no browser bounce or page reload. */
 html:has(.checkin) { overscroll-behavior-y: contain; }
 .pull-hint {

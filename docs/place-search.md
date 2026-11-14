@@ -33,10 +33,18 @@ spaces its requests out and only searches Nominatim when you press Search.
 ## Check in
 
 The + on the Timeline is for checking in where you are: it lists the places
-within about 600 m, closest first, from your journal and from OpenStreetMap
-(the same kinds as above, first in that smaller area). Where there are fewer
-than three that close, it also searches about 3 km around and lists the
-nearest ten, saying that nothing is within 600 m. Tapping one records a visit for the current date and time
+within about 600 m, closest first, from your journal and from OpenStreetMap.
+From OpenStreetMap it lists every named business and place to visit that
+close (shops, banks, churches, offices, doctors, petrol stations, parks…),
+asked for in one request to its [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
+at `overpass-api.de` (Nominatim can only look up one kind of place at a
+time, a second apart), and, at the same time, the kinds above from Nominatim.
+The Overpass answer can take a while; its places join the list when it
+arrives ("Looking for more places around you…" until then), so the rest
+never waits for it. Overpass leaves out the town, so checking in at one of
+its places looks the address up first. Where there are fewer than three
+places that close, it also searches about 3 km around (the kinds above) and
+lists the nearest ten, saying that nothing is within 600 m. Tapping one records a visit for the current date and time
 straight away and opens it, to add a rating, people and notes ("Add to
 Journal" keeps them; the X in the corner takes the check-in back, removing the
 visit, and the place if the check-in added it). Offline, it

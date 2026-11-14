@@ -90,6 +90,82 @@ export async function nearbyPlaces(near, onUpdate = () => {}, { size = 0.03 } = 
   return places;
 }
 
+// Every named business and place to visit within `meters` of `near` (shops,
+// banks, churches, offices, doctors, parks…, and places to eat and drink),
+// in one request to OpenStreetMap's Overpass API: Nominatim can only look up
+// one kind of place at a time, a second apart. Closest first; the same
+// shape and ids as Nominatim's results, without the town (addressAt can
+// find it). Usage policy: https://dev.overpass-api.de/overpass-doc/en/preface/commons.html
+const OVERPASS = 'https://overpass-api.de/api/interpreter';
+const BUSINESS_KEYS = ['amenity', 'shop', 'tourism', 'leisure', 'craft', 'office', 'healthcare', 'historic', 'club'];
+// Named things that aren't places one goes to.
+const NOT_PLACES = {
+  amenity: new Set(['parking', 'parking_space', 'parking_entrance', 'bicycle_parking', 'motorcycle_parking', 'bench',
+    'waste_basket', 'waste_disposal', 'recycling', 'shelter', 'toilets', 'drinking_water', 'vending_machine', 'atm',
+    'telephone', 'post_box', 'charging_station', 'fountain', 'clock', 'loading_dock', 'hunting_stand', 'weighbridge',
+    'grit_bin', 'bbq', 'water_point', 'compressed_air', 'letter_box', 'parcel_locker']),
+  leisure: new Set(['pitch', 'track', 'swimming_pool', 'picnic_table', 'firepit', 'slipway', 'garden', 'outdoor_seating']),
+  tourism: new Set(['information', 'artwork', 'picnic_site']),
+  historic: new Set(['memorial', 'wayside_cross', 'boundary_stone', 'milestone']),
+};
+const aroundCache = new Map(); // "lat,lon/meters" → { time, places }, for 10 minutes
+
+export async function placesAround(near, meters = 600) {
+  const key = `${near.lat.toFixed(3)},${near.lon.toFixed(3)}/${meters}`;
+  const cached = aroundCache.get(key);
+  if (cached && Date.now() - cached.time < 10 * 60_000) return cached.places;
+  const around = `around:${Math.round(meters)},${near.lat.toFixed(6)},${near.lon.toFixed(6)}`;
+  const query = `[out:json][timeout:25];(${BUSINESS_KEYS.map((k) => `nwr(${around})[name][${k}];`).join('')});out center tags 300;`;
+  const ask = () => fetch(OVERPASS, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ data: query }),
+  });
+  // A busy server answers 429, 502 or 504 now and then: once more, a little later.
+  let res = await ask().catch(() => null);
+  if (!res || [429, 502, 503, 504].includes(res.status)) {
+    await new Promise((r) => setTimeout(r, 3000));
+    res = await ask();
+  }
+  if (!res.ok) throw new Error(`Overpass failed (${res.status})`);
+  const places = [];
+  for (const e of (await res.json()).elements || []) {
+    const t = e.tags || {};
+    const category = BUSINESS_KEYS.find((k) => t[k] && !NOT_PLACES[k]?.has(t[k]));
+    const lat = e.lat ?? e.center?.lat;
+    const lon = e.lon ?? e.center?.lon;
+    if (!category || !t.name || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const kind = t[category] === 'yes' ? category : t[category];
+    const street = [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' ');
+    const city = t['addr:city'] || '';
+    const place = {
+      id: `${e.type}${e.id}`,
+      venue: true,
+      food: FOOD_TYPES.has(kind) && ['amenity', 'shop'].includes(category),
+      type: typeFromKind(kind),
+      name: t.name,
+      kind: kind.replace(/_/g, ' '),
+      address: [street, [t['addr:postcode'], city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+      street,
+      city,
+      state: t['addr:state'] || '',
+      country: '',
+      countryCode: (t['addr:country'] || '').toUpperCase(),
+      lat,
+      lon,
+      website: t.website || t['contact:website'] || '',
+      phone: t.phone || t['contact:phone'] || '',
+      cuisine: (t.cuisine || '').split(';').map((c) => c.trim().replace(/_/g, ' ')).filter(Boolean).join(', '),
+      source: 'overpass',
+    };
+    places.push({ ...place, distance: distance(near, place) });
+  }
+  places.sort((a, b) => a.distance - b.distance);
+  if (aroundCache.size >= 6) aroundCache.delete(aroundCache.keys().next().value);
+  aroundCache.set(key, { time: Date.now(), places });
+  return places;
+}
+
 const MILE_REGIONS = new Set(['US', 'GB', 'LR', 'MM']);
 
 export function formatDistance(m) {
