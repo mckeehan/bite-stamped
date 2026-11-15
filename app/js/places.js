@@ -41,6 +41,27 @@ export async function addressAt({ lat, lon }) {
   return addressParts(hit.address);
 }
 
+// Where an address is: { lat, lon }, or null when OpenStreetMap doesn't know
+// it. Needs a street address (a town alone would put the pin in its middle).
+// First the address in its parts, then as one line.
+export async function locationOf({ address, city, state, country, countryCode }) {
+  const street = String(address || '').trim();
+  if (!street) return null;
+  const parts = new URLSearchParams({ street, limit: '1' });
+  if (city) parts.set('city', city);
+  if (state) parts.set('state', state);
+  if (country) parts.set('country', country);
+  if (countryCode) parts.set('countrycodes', countryCode.toLowerCase());
+  let hits = await request('search', parts);
+  if (!hits.length) {
+    const line = new URLSearchParams({ q: [street, city, state, country].filter(Boolean).join(', '), limit: '1' });
+    if (countryCode) line.set('countrycodes', countryCode.toLowerCase());
+    hits = await request('search', line);
+  }
+  const hit = hits[0];
+  return hit ? { lat: Number(hit.lat), lon: Number(hit.lon) } : null;
+}
+
 function addressParts(a) {
   return {
     street: [a.house_number, a.road].filter(Boolean).join(' '),

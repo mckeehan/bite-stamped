@@ -3,7 +3,7 @@ import {
   newRestaurant, notePreview, isFoodPlace, placeSymbol, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
 } from './model.js';
 import { renderMarkdown } from './md.js';
-import { searchPlaces, locate, nearbyPlaces, placesAround, formatDistance, fallbackSearch, addressAt } from './places.js';
+import { searchPlaces, locate, nearbyPlaces, placesAround, formatDistance, fallbackSearch, addressAt, locationOf } from './places.js';
 import { createMap } from './map.js';
 import * as offline from './offline.js';
 import { FIELDS, suggest, applySuggestion } from './search.js';
@@ -442,8 +442,20 @@ function renderList(tab) {
         hydrateImages(box);
       },
     });
-    const missing = shown.filter((r) => r.lat === null || r.lon === null).length;
-    $('#sortNote').textContent = missing ? `${missing} without a location ${missing === 1 ? 'is' : 'are'} not on the map.` : '';
+    const missing = shown.filter((r) => r.lat === null || r.lon === null);
+    const findable = missing.filter((r) => r.address);
+    const note = $('#sortNote');
+    note.textContent = missing.length ? `${missing.length} without a location ${missing.length === 1 ? 'is' : 'are'} not on the map.` : '';
+    if (findable.length && navigator.onLine) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'text-btn';
+      b.textContent = findable.length === missing.length
+        ? `Find ${findable.length === 1 ? 'it' : 'them'} from the address`
+        : `Find the ${findable.length === 1 ? 'one' : findable.length} with an address`;
+      note.append(' ', b);
+      b.addEventListener('click', () => findLocations(findable, note));
+    }
     if (!here) {
       locate().then((pos) => {
         if (!pos) return;
@@ -451,6 +463,22 @@ function renderList(tab) {
         if (map === thisMap) thisMap.setHere(pos);
       });
     }
+  };
+
+  // Looks up where places with an address are (one a second, as
+  // OpenStreetMap asks), saves each one found, then draws the map again.
+  const findLocations = async (places, note) => {
+    let found = 0;
+    for (const [i, r] of places.entries()) {
+      note.textContent = `Finding ${i + 1} of ${places.length}: ${r.name}…`;
+      try {
+        const at = await locationOf(r);
+        if (at) { await repo.save({ ...r, ...at }); found++; }
+      } catch {}
+      if (!$('#mapBox')) return; // left the screen
+    }
+    toast(found === places.length ? `Found ${found === 1 ? 'it' : `all ${found}`}` : `Found ${found} of ${places.length}; OpenStreetMap doesn’t know the other addresses.`);
+    render(); // the list screen again, with them on the map
   };
 
   const fill = () => {
@@ -1007,8 +1035,13 @@ function renderEdit(path, params, resume = null) {
     form.toTry.addEventListener('change', () => { $('#visitNote').hidden = form.toTry.checked; });
   }
 
+  // The address as it was, to tell whether it changed.
+  const whereKey = (x) => [x.address, x.city, x.state, x.country].map((s) => String(s || '').trim().toLowerCase()).join('|');
+  const whereBefore = whereKey(r);
+  let saving = false;
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (saving) return;
     const f = form.elements;
     Object.assign(r, {
       name: f.name.value.trim(),
@@ -1030,6 +1063,22 @@ function renderEdit(path, params, resume = null) {
       lon: f.lon.value === '' ? null : Number(f.lon.value),
     });
     if (!r.name) return;
+    // An address typed in (or changed) without a location to go with it:
+    // look it up, so the place is on the map. A place picked from the search
+    // already has one, and keeps it unless its address was changed.
+    const changed = whereKey(r) !== whereBefore;
+    const picked = !existing && r.lat !== null;
+    if (r.address && navigator.onLine && (r.lat === null || (changed && !picked))) {
+      saving = true;
+      const button = $('#saveBtn');
+      button.disabled = true;
+      button.textContent = 'Finding…';
+      try {
+        const found = await Promise.race([locationOf(r), new Promise((resolve) => setTimeout(() => resolve(undefined), 8000))]);
+        if (found) Object.assign(r, found);
+        else if (found === null && r.lat === null) toast('Saved. That address isn’t on OpenStreetMap, so the place isn’t on the map.');
+      } catch {}
+    }
     // A new place that isn't just "to try" was visited: record a visit for now,
     // with the rating given here.
     if (!existing && !r.toTry) r.visits = [{ date: visitDate, rating: r.rating, people: [], notes: '' }];

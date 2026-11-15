@@ -30,6 +30,20 @@ Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominat
 allows at most one request per second and no search-as-you-type, so the app
 spaces its requests out and only searches Nominatim when you press Search.
 
+## A location from the address
+
+A place picked from the search comes with its location. One typed in by
+hand (a custom place, or an address added or changed later) gets it when you
+save: the app looks the address up on Nominatim (street, town, state and
+country), and the save button says "Finding…" meanwhile, for up to 8
+seconds. Saving without changing the address doesn't look anything up. If
+the address isn't found, or you're offline, the place is saved without a
+location (or keeps the one it had).
+
+On the map, the note about places without a location offers to find the
+ones that have an address: "Find them from the address" looks each one up
+(one a second, as Nominatim asks) and saves the locations found.
+
 ## Check in
 
 The + on the Timeline is for checking in where you are: it lists the places

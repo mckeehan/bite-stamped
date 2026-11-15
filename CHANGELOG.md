@@ -20,6 +20,14 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.22.0] - 2026-11-15
+
+### Added
+- Saving a place with an address but no location, or with a changed
+  address, looks the address up on OpenStreetMap and puts the place on the
+  map. On the map, the note "N without a location are not on the map"
+  offers to find the ones that already have an address.
+
 ## [2.21.0] - 2026-11-15
 
 ### Added
