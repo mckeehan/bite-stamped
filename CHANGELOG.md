@@ -20,6 +20,14 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.21.0] - 2026-11-15
+
+### Added
+- The map stays where you panned and zoomed it: after opening a place, or
+  going to another tab and back, each list's map (Timeline, Visited, To
+  Try) is as you left it. Switching to the list forgets it, so the map
+  starts around you (or your latest place) again.
+
 ## [2.20.0] - 2026-11-15
 
 ### Added

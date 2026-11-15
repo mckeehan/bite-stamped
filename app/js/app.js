@@ -196,6 +196,10 @@ let lastList = '';
 const homeOf = (r) => (r?.toTry ? '#/totry' : lastList && lastList !== '#/totry' ? lastList : '#/');
 
 let here = null; // device position, once "Nearest" asked for it
+// Where each list's map was panned and zoomed to ({ lat, lon, zoom }), so it
+// is there again on coming back (from a place, another tab); forgotten when
+// the list is shown as a list.
+const mapViews = {};
 
 function sortRestaurants(list, sort) {
   const away = (r) => (here && r.lat !== null && r.lon !== null ? distance(here, r) : Infinity);
@@ -428,6 +432,8 @@ function renderList(tab) {
       pins: shown.map((r) => ({ id: r.path, lat: r.lat, lon: r.lon, label: r.name })),
       here,
       focus: here || latest,
+      view: mapViews[tab],
+      onMove: (view) => { mapViews[tab] = view; },
       onPin: (path) => {
         const box = $('#mapCard');
         if (!path) { box.hidden = true; return; }
@@ -522,6 +528,7 @@ function renderList(tab) {
   });
   $('#viewBtn').addEventListener('click', () => {
     listState.view = listState.view === 'map' ? 'list' : 'map';
+    if (listState.view === 'list') for (const key of Object.keys(mapViews)) delete mapViews[key];
     rememberList();
     fill();
   });

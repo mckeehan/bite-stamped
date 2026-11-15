@@ -30,8 +30,10 @@ const toWorld = (lat, lon) => {
 // `onPin(id)` when one is tapped,
 // `onPin(null)` when the map itself is tapped. With `focus` ({ lat, lon }),
 // the map starts close around it (START_ZOOM) instead of showing every pin,
-// unless the pins fit at that zoom anyway.
-export function createMap(container, { pins = [], onPin = () => {}, here = null, focus = null } = {}) {
+// unless the pins fit at that zoom anyway. With `view` ({ lat, lon, zoom },
+// as `onMove` last gave it), the map starts there instead, as it was left.
+// `onMove(view)` after the user pans or zooms.
+export function createMap(container, { pins = [], onPin = () => {}, here = null, focus = null, view = null, onMove = () => {} } = {}) {
   container.classList.add('map');
   container.innerHTML = `
     <div class="map-tiles"></div>
@@ -236,6 +238,7 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
     }
     for (let i = circlesUsed; i < circles.length; i++) if (!circles[i].hidden) circles[i].hidden = true;
     drawLabels();
+    if (moved) onMove(currentView());
     if (hereDot) {
       const s = toScreen(toWorld(here.lat, here.lon));
       hereDot.style.transform = `translate(${s.x}px, ${s.y}px)`;
@@ -287,6 +290,13 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
     center = { x: before.x - (sx - width / 2) / scale(), y: before.y - (sy - height / 2) / scale() };
     clampCenter();
     draw();
+  }
+
+  // Where the map is: { lat, lon, zoom }.
+  function currentView() {
+    const lon = center.x * 360 - 180;
+    const lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * center.y))) * 180) / Math.PI;
+    return { lat, lon, zoom };
   }
 
   function clampCenter() {
@@ -404,7 +414,15 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
   const observer = new ResizeObserver(resize);
   observer.observe(container);
   resize();
-  fit();
+  if (view && Number.isFinite(view.lat) && Number.isFinite(view.lon) && Number.isFinite(view.zoom)) {
+    // As the user left it: don't move to "here" when that arrives.
+    moved = true;
+    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom));
+    center = toWorld(view.lat, view.lon);
+    draw();
+  } else {
+    fit();
+  }
 
   return { fit, setHere, destroy: () => observer.disconnect() };
 }
