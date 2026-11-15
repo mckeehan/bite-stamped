@@ -20,6 +20,18 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.24.0] - 2026-11-15
+
+### Added
+- The Timeline can be shown as a month calendar (the button at the top,
+  where the map button was): each day with a dot per visit (up to three),
+  today circled. Tapping a day shows the timeline from that day. Change
+  months with the arrows or by swiping; "Today" goes back to this month.
+  A search narrows the calendar too (e.g. `with:anna`).
+
+### Removed
+- The Timeline's map view (Visited and To Try still have theirs).
+
 ## [2.23.0] - 2026-11-15
 
 ### Added

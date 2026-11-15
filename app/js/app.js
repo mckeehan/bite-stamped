@@ -178,10 +178,13 @@ const SORTS = {
   visited: [['name', 'Name'], ['recent', 'Last visit'], ['rating', 'Rating'], ['visits', 'Most visits'], ['nearest', 'Nearest'], ['added', 'Date added']],
   totry: [['nearest', 'Nearest'], ['added', 'Date added'], ['name', 'Name']],
 };
-const listState = { view: 'list', query: '', sorts: { visited: 'name', totry: 'nearest' } };
+// view: Visited and To Try as a list or on the map; timelineView: the
+// Timeline as a list or as a month calendar.
+const listState = { view: 'list', timelineView: 'list', query: '', sorts: { visited: 'name', totry: 'nearest' } };
 try {
   const saved = JSON.parse(localStorage.getItem('listState') || '{}');
   if (saved.view === 'map') listState.view = 'map';
+  if (saved.timelineView === 'calendar') listState.timelineView = 'calendar';
   // Before v2, To Try's old default (date added) was saved even if never chosen;
   // before v3 the visited list was the start screen, sorted by last visit.
   if ((saved.v || 0) < 2 && saved.sorts?.totry === 'added') delete saved.sorts.totry;
@@ -189,7 +192,7 @@ try {
   Object.assign(listState.sorts, saved.sorts);
 } catch {}
 const rememberList = () => {
-  try { localStorage.setItem('listState', JSON.stringify({ v: 3, view: listState.view, sorts: listState.sorts })); } catch {}
+  try { localStorage.setItem('listState', JSON.stringify({ v: 3, view: listState.view, timelineView: listState.timelineView, sorts: listState.sorts })); } catch {}
 };
 // "Back" from a restaurant goes to the list it was opened from.
 let lastList = '';
@@ -200,6 +203,8 @@ let here = null; // device position, once "Nearest" asked for it
 // is there again on coming back (from a place, another tab); forgotten when
 // the list is shown as a list.
 const mapViews = {};
+// The month the Timeline's calendar shows (YYYY-MM; '' = this month).
+let calendarMonth = '';
 
 function sortRestaurants(list, sort) {
   const away = (r) => (here && r.lat !== null && r.lon !== null ? distance(here, r) : Infinity);
@@ -218,6 +223,9 @@ const ICONS = {
   sort: '<svg viewBox="0 0 24 24"><path d="M8 4v16M8 4 4.5 7.5M8 4l3.5 3.5M16 20V4M16 20l-3.5-3.5M16 20l3.5-3.5"/></svg>',
   map: '<svg viewBox="0 0 24 24"><path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6 9 4Zm0 0v14m6-12v14"/></svg>',
   list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24"><path d="M4.5 6.5h15v13h-15zM4.5 10.5h15M8.5 4v4M15.5 4v4"/></svg>',
+  prev: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+  next: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
   add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   directions: '<svg viewBox="0 0 24 24"><path d="M3.5 11 20.5 3.5 13 20.5l-2-7.5-7.5-2Z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
@@ -306,6 +314,7 @@ function renderList(tab) {
       <p class="muted small sort-note" id="sortNote"></p>
     </div>
     <ul class="cards" id="cards"></ul>
+    <section class="calendar" id="calView" hidden></section>
     <div class="map-view" id="mapView" hidden><div class="map-box" id="mapBox"></div><div class="map-card" id="mapCard" hidden></div></div>`;
 
   let map = null;
@@ -360,7 +369,8 @@ function renderList(tab) {
   // visits, and drawing them all made the screen slow to appear).
   const CHUNK = 50;
   let more = null; // IntersectionObserver of the current list
-  const fillList = () => {
+  // `untilDay` (YYYY-MM-DD, the timeline): draw at least down to that day.
+  const fillList = ({ untilDay = '' } = {}) => {
     more?.disconnect();
     more = null;
     const shown = shownRestaurants();
@@ -395,7 +405,7 @@ function renderList(tab) {
           if (day === lastDay && !html) { sameDay += li; continue; }
           if (day !== lastDay) {
             if (html) html += '</ul></li>';
-            html += `<li class="day"><h2 class="day-heading">${esc(formatDay(day))}</h2><ul class="cards">`;
+            html += `<li class="day" data-day="${esc(day)}"><h2 class="day-heading">${esc(formatDay(day))}</h2><ul class="cards">`;
             lastDay = day;
           }
           html += li;
@@ -412,6 +422,12 @@ function renderList(tab) {
     };
     // After a sync, as many as before, so the scroll position is still there.
     drawMore(keepDrawn ? Math.max(CHUNK, listState.drawn || 0) : CHUNK);
+    if (untilDay) {
+      // Newest first: draw until a day before the one wanted has come, so all of it is there.
+      while (drawn < items.length && items[drawn - 1].v.date.slice(0, 10) >= untilDay) drawMore();
+      // And some after it, so that day can scroll to the top.
+      if (drawn < items.length) drawMore();
+    }
     if (drawn < items.length) {
       more = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) drawMore(); }, { rootMargin: '1500px 0px' });
       more.observe(end);
@@ -490,25 +506,113 @@ function renderList(tab) {
   };
 
   const fill = () => {
-    const mapMode = listState.view === 'map';
-    $('#cards').hidden = mapMode;
+    const timeline = tab === 'timeline';
+    const mapMode = !timeline && listState.view === 'map';
+    const calMode = timeline && listState.timelineView === 'calendar';
+    $('#cards').hidden = mapMode || calMode;
     $('#mapView').hidden = !mapMode;
-    $('#viewBtn').innerHTML = mapMode ? ICONS.list : ICONS.map;
-    $('#viewBtn').setAttribute('aria-label', mapMode ? 'Show as list' : 'Show on map');
+    $('#calView').hidden = !calMode;
+    const [icon, label] = timeline
+      ? (calMode ? [ICONS.list, 'Show as list'] : [ICONS.calendar, 'Show as calendar'])
+      : (mapMode ? [ICONS.list, 'Show as list'] : [ICONS.map, 'Show on map']);
+    $('#viewBtn').innerHTML = icon;
+    $('#viewBtn').setAttribute('aria-label', label);
     // The timeline has one order (newest first); keep the button's space so the title stays centered.
     $('#sortBtn').hidden = mapMode;
-    $('#sortBtn').style.visibility = tab === 'timeline' ? 'hidden' : '';
+    $('#sortBtn').style.visibility = timeline ? 'hidden' : '';
     $('#sortNote').textContent = '';
     if (mapMode) fillMap();
-    else { map?.destroy(); map = null; fillList(); }
+    else { map?.destroy(); map = null; if (calMode) fillCalendar(); else fillList(); }
   };
+
+  // The timeline as a month calendar: each day with its visits as dots (the
+  // ones the search finds), today circled. Tapping a day with visits shows
+  // the timeline from that day. Months by the arrows, by swiping, or Today.
+  const fillCalendar = () => {
+    const cal = $('#calView');
+    const visits = new Map(); // YYYY-MM-DD → number of visits
+    for (const r of shownRestaurants()) {
+      for (const v of r.visits) {
+        if (!v.date) continue;
+        const day = v.date.slice(0, 10);
+        visits.set(day, (visits.get(day) || 0) + 1);
+      }
+    }
+    const pad = (n) => String(n).padStart(2, '0');
+    const todayKey = today();
+    if (!calendarMonth) calendarMonth = todayKey.slice(0, 7);
+    const [y, m] = calendarMonth.split('-').map(Number);
+    const first = new Date(y, m - 1, 1);
+    const days = new Date(y, m, 0).getDate();
+    // The week starts where the device's language says (Sunday in the US).
+    let weekStart = 0;
+    try { weekStart = (new Intl.Locale(navigator.language).getWeekInfo?.() || new Intl.Locale(navigator.language).weekInfo)?.firstDay % 7 || 0; } catch {}
+    const lead = (first.getDay() - weekStart + 7) % 7;
+    const dayNames = [...Array(7)].map((_, i) => new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(new Date(2024, 0, 7 + weekStart + i)));
+    const inMonth = [...Array(days)].reduce((n, _, i) => n + (visits.get(`${calendarMonth}-${pad(i + 1)}`) || 0), 0);
+    let cells = '';
+    for (let i = 0; i < lead; i++) cells += '<span class="cal-day blank"></span>';
+    for (let d = 1; d <= days; d++) {
+      const key = `${calendarMonth}-${pad(d)}`;
+      const n = visits.get(key) || 0;
+      const dots = n ? `<span class="cal-dots" aria-hidden="true">${'<i></i>'.repeat(Math.min(n, 3))}</span>` : '';
+      const label = `${formatDay(key)}${n ? `, ${n} visit${n > 1 ? 's' : ''}` : ''}`;
+      cells += n
+        ? `<button type="button" class="cal-day has-visits${key === todayKey ? ' today' : ''}" data-day="${key}" aria-label="${esc(label)}"><span class="cal-num">${d}</span>${dots}</button>`
+        : `<span class="cal-day${key === todayKey ? ' today' : ''}" aria-label="${esc(label)}"><span class="cal-num">${d}</span></span>`;
+    }
+    const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(first);
+    cal.innerHTML = `
+      <div class="cal-head">
+        <button type="button" class="icon-btn" data-month="-1" aria-label="Previous month">${ICONS.prev}</button>
+        <h2 class="cal-title">${esc(monthName)}</h2>
+        <button type="button" class="icon-btn" data-month="1" aria-label="Next month">${ICONS.next}</button>
+      </div>
+      <div class="cal-grid cal-names" aria-hidden="true">${dayNames.map((n) => `<span>${esc(n)}</span>`).join('')}</div>
+      <div class="cal-grid">${cells}</div>
+      <p class="muted small cal-foot">${inMonth ? `${inMonth} visit${inMonth > 1 ? 's' : ''} this month` : 'No visits this month'}${
+        calendarMonth === todayKey.slice(0, 7) ? '' : ' · <button type="button" class="text-btn" data-month="today">Today</button>'}</p>`;
+  };
+  const moveMonth = (step) => {
+    if (step === 'today') calendarMonth = today().slice(0, 7);
+    else {
+      const [y, m] = calendarMonth.split('-').map(Number);
+      const d = new Date(y, m - 1 + step, 1);
+      calendarMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    fillCalendar();
+  };
+  $('#calView').addEventListener('click', (e) => {
+    const month = e.target.closest('[data-month]');
+    if (month) { moveMonth(month.dataset.month === 'today' ? 'today' : Number(month.dataset.month)); return; }
+    const day = e.target.closest('.cal-day[data-day]');
+    if (!day || swiped) return;
+    // The timeline from that day.
+    listState.timelineView = 'list';
+    rememberList();
+    fill();
+    fillList({ untilDay: day.dataset.day });
+    const heading = $(`#cards li.day[data-day="${day.dataset.day}"]`);
+    heading?.scrollIntoView({ block: 'start' });
+  });
+  // Swiping left or right changes the month.
+  let swipe = null;
+  let swiped = false; // the click at the end of a swipe isn't a tap on a day
+  $('#calView').addEventListener('pointerdown', (e) => { swipe = { x: e.clientX, y: e.clientY }; swiped = false; });
+  $('#calView').addEventListener('pointerup', (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x;
+    const dy = e.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { swiped = true; moveMonth(dx < 0 ? 1 : -1); }
+  });
 
   const useNearest = async () => {
     $('#sortNote').textContent = 'Finding your location…';
     const pos = await locate();
     if (pos) here = pos;
     $('#sortNote').textContent = pos ? '' : 'Your location is not available, so “Nearest” cannot sort.';
-    if (pos && sort() === 'nearest' && listState.view === 'list') fillList();
+    if (pos && sort() === 'nearest' && listState.view === 'list' && tab !== 'timeline') fillList();
   };
 
   // Suggestions under the search box (search.js): while typing tag:, with:,
@@ -563,8 +667,14 @@ function renderList(tab) {
     if (e.key === 'Escape' && !suggestBox.hidden) { e.preventDefault(); suggestBox.hidden = true; }
   });
   $('#viewBtn').addEventListener('click', () => {
-    listState.view = listState.view === 'map' ? 'list' : 'map';
-    if (listState.view === 'list') for (const key of Object.keys(mapViews)) delete mapViews[key];
+    if (tab === 'timeline') {
+      listState.timelineView = listState.timelineView === 'calendar' ? 'list' : 'calendar';
+      // The calendar opens on this month.
+      if (listState.timelineView === 'calendar') calendarMonth = '';
+    } else {
+      listState.view = listState.view === 'map' ? 'list' : 'map';
+      if (listState.view === 'list') for (const key of Object.keys(mapViews)) delete mapViews[key];
+    }
     rememberList();
     fill();
   });
@@ -2138,7 +2248,7 @@ let staleView = false;
 let keepDrawn = false; // redraw lists as far as they were drawn
 async function refreshAfterRemoteChange() {
   await repo.loadAll();
-  const onMap = listState.view === 'map' && /^#\/?(totry|visited)?$/.test(location.hash || '#/');
+  const onMap = listState.view === 'map' && /^#\/(totry|visited)$/.test(location.hash || '#/');
   const editing = sheet.open || onMap || /^#\/(new|edit\/|settings|checkin)/.test(location.hash);
   if (editing) { staleView = true; return; }
   const y = window.scrollY;

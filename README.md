@@ -15,8 +15,9 @@ build step, no dependencies at all.
   with one tap on a place right around you
 - Dishes with rating, price, notes and an image (for places to eat and drink)
 - Photos with a title and date; any photo can be the cover
-- A "Timeline" of every visit by day, plus "Visited" and "To Try" lists, sorted by name, last visit, rating, visits, date
-  added or distance, or shown on a map (OpenStreetMap)
+- A "Timeline" of every visit by day, or as a month calendar to jump to a
+  day, plus "Visited" and "To Try" lists, sorted by name, last visit,
+  rating, visits, date added or distance, or shown on a map (OpenStreetMap)
 - [Search the lists](docs/search.md) by any word, or in one field with
   suggestions as you type: `tag:brunch`, `with:anna`, `city:knox`
 - [Find and merge duplicate places](docs/duplicates.md): the same address, or the

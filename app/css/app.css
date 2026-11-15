@@ -681,6 +681,35 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 /* --- timeline: visits under a heading per day --- */
 
 .cards.timeline { gap: 20px; }
+.cards.timeline li.day { scroll-margin-top: 12px; }
+/* The Timeline as a month calendar (app.js: fillCalendar). */
+.calendar { padding-bottom: 16px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.cal-head { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin: 4px 0 8px; }
+.cal-title { margin: 0; text-align: center; font-size: 1.25rem; }
+.cal-head .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-names span { text-align: center; color: var(--muted); font-size: 0.75rem; font-weight: 600; padding-bottom: 6px; }
+.cal-day {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 3px;
+  min-height: 56px;
+  padding: 6px 0 4px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+}
+.cal-day.blank { border-top-color: transparent; }
+.cal-day.has-visits { color: var(--text); font-weight: 600; cursor: pointer; }
+.cal-day.has-visits:active { background: var(--surface); }
+.cal-num { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; }
+.cal-day.today .cal-num { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.cal-dots { display: flex; gap: 3px; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.cal-foot { text-align: center; margin: 12px 0 0; }
 .day-heading { margin: 0 0 8px; font-size: 1.15rem; }
 
 .feed-url { font-size: 0.85rem; margin-bottom: 10px; }
