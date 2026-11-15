@@ -29,7 +29,9 @@ build step, no dependencies at all.
 - Your visits as a [calendar feed](docs/calendar.md) to subscribe to in Apple
   Calendar, Google Calendar or Outlook, through a private link
 - [Storage and backup](docs/storage-and-backups.md) on your server: every
-  version of every file is kept
+  version of every file is kept, and the place files there can be
+  [edited in any text editor](docs/storage-and-backups.md#editing-place-files-on-the-server)
+  and sync to your devices
 - Export and import as a ZIP of Markdown files with YAML headers
   ([data format](docs/data-format.md))
 - [Bring over your data from Eatlist](docs/import-from-eatlist.md) (on a Mac):

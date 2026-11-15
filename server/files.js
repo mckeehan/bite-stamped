@@ -4,6 +4,7 @@
 // based on (If-Match) and fail with 409 when someone else changed it first.
 
 import { json, readBody, randomToken, HttpError } from './http.js';
+import { fromMarkdown } from '../app/js/model.js';
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const PAGE = 500;
@@ -56,7 +57,73 @@ export function createFiles({ storage }) {
     });
   }
 
+  // Edits made to place files in files/places/ on the server (in an editor):
+  // each changed, new or deleted file becomes a change like one from a
+  // device, so devices get it on their next sync. Run before each list of
+  // changes (at most every few seconds) and at start. A file that was
+  // saved a moment ago may still be being written: next time. One whose
+  // header can't be read is left out (and said so in the log).
+  const DISK_DIR = 'places/';
+  const BY_DISK = 'files/ on the server';
+  let lastScan = 0;
+  const unreadable = new Map(); // path → the version of it already warned about
+  function scanDisk({ force = false } = {}) {
+    if (!force && Date.now() - lastScan < 3000) return;
+    lastScan = Date.now();
+    const onDisk = storage.listCurrent(DISK_DIR).filter((d) => d.path.endsWith('.md') && validPath(d.path));
+    const rows = new Map(storage.all('SELECT path, rev, deleted FROM files WHERE path LIKE ?', `${DISK_DIR}%`).map((r) => [r.path, r]));
+    const noted = new Map(storage.all('SELECT path, rev, mtime_ms, size, ino FROM disk_files WHERE path LIKE ?', `${DISK_DIR}%`).map((r) => [r.path, r]));
+    for (const d of onDisk) {
+      const row = rows.get(d.path);
+      const note = noted.get(d.path);
+      noted.delete(d.path);
+      const live = row && !row.deleted;
+      if (live && note && note.rev === row.rev && note.mtime_ms === d.mtimeMs && note.size === d.size && note.ino === d.ino) continue;
+      if (Date.now() - d.mtimeMs < 2000) continue;
+      const bytes = storage.readCurrent(d.path);
+      if (!bytes) continue;
+      const saved = live ? storage.readVersion(d.path, row.rev) : null;
+      if (saved && Buffer.compare(saved, bytes) === 0) {
+        // Unchanged (or a hard link from before 2.18.0): a copy of its own from now on.
+        storage.setCurrent(d.path, row.rev);
+        continue;
+      }
+      try {
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        if (!/^\uFEFF?---\r?\n/.test(text)) throw new Error('no header (it must start with a line "---")');
+        if (!String(fromMarkdown(d.path, text).name ?? '').trim()) throw new Error('no name in the header');
+      } catch (e) {
+        const seen = `${d.mtimeMs}:${d.size}`;
+        if (unreadable.get(d.path) !== seen) console.warn(`[bite-stamped] not syncing files/${d.path}: ${e.message}`);
+        unreadable.set(d.path, seen);
+        continue;
+      }
+      unreadable.delete(d.path);
+      const rev = newRev();
+      storage.writeVersion(d.path, rev, bytes);
+      if (commit({ path: d.path, rev, size: bytes.byteLength, type: 'text/markdown', deleted: false, by: BY_DISK }, row?.rev ?? '') === null) {
+        storage.dropVersion(d.path, rev);
+        continue;
+      }
+      storage.setCurrent(d.path, rev);
+      console.log(`[bite-stamped] ${live ? 'changed' : 'new'} in files/: ${d.path}`);
+    }
+    // Files that were there and are gone: deleted there. Not when the folder
+    // is empty or missing (moved away, or a disk not mounted).
+    if (!onDisk.length) return;
+    for (const note of noted.values()) {
+      const row = rows.get(note.path);
+      if (row && !row.deleted && row.rev === note.rev) {
+        if (commit({ path: note.path, rev: newRev(), size: 0, type: '', deleted: true, by: BY_DISK }, row.rev) === null) continue;
+        console.log(`[bite-stamped] deleted in files/: ${note.path}`);
+      }
+      storage.clearCurrent(note.path);
+    }
+  }
+  try { scanDisk({ force: true }); } catch (e) { console.warn('[bite-stamped] could not check files/:', e); }
+
   function changes(url) {
+    try { scanDisk(); } catch (e) { console.warn('[bite-stamped] could not check files/:', e); }
     const since = Math.max(0, Number(url.searchParams.get('since')) || 0);
     const rows = storage.all('SELECT path, rev, seq, size, type, deleted FROM files WHERE seq > ? ORDER BY seq LIMIT ?', since, PAGE)
       .map((r) => ({ ...r, deleted: !!r.deleted }));
@@ -120,5 +187,5 @@ export function createFiles({ storage }) {
     return json({ rev, seq });
   }
 
-  return { changes, get, put, remove };
+  return { changes, get, put, remove, scanDisk };
 }

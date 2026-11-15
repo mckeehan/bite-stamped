@@ -155,7 +155,7 @@ export function createApp(config) {
     return response;
   }
 
-  return { handle, storage, close: () => storage.close() };
+  return { handle, storage, scanDisk: files.scanDisk, close: () => storage.close() };
 }
 
 const notFound = () => new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });

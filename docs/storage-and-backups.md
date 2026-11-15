@@ -20,9 +20,10 @@ files/<path>             the current version of each file, as plain files
 `<path>` is the file's path in the journal: `places/<STATE>-<city>-<name>.md` (`restaurants/…` before 2.0.0), or an
 image under `media/` (see [data-format.md](data-format.md)).
 
-`files/` is a convenient read-only view for browsing the Markdown and images.
-Edits made there are not synced; to change files outside
-the app, use **Settings → Export ZIP** and **Import ZIP**.
+`files/` holds the current version of every file, for browsing the Markdown
+and images. The place files there can be edited: see
+[editing place files on the server](#editing-place-files-on-the-server).
+Images there are for looking at only; changes to them are not synced.
 
 ## What happens on a save
 
@@ -36,9 +37,10 @@ the app, use **Settings → Export ZIP** and **Import ZIP**.
    based on the current revision. If it is, the row for the path in the
    `files` table is updated to point at the new revision, and the change
    counter goes up by one; other devices use that counter to fetch changes.
-4. `files/<path>` is replaced with a hard link to the new revision (a copy if
-   the file system doesn't support hard links). It takes no extra space and
-   is only there for browsing: edits made in `files/` are not synced.
+4. `files/<path>` is replaced with the new revision: a copy for a place
+   file (`.md`), which you may edit there, and a hard link for an image (a
+   copy if the file system doesn't support hard links), which takes no extra
+   space.
 
 The `files` table in SQLite holds only the **current** revision of each path,
 not the list of earlier ones. The history is the contents of
@@ -86,6 +88,35 @@ stores the whole Markdown file again; these are small. Photos make up most of
 the space, and each photo is usually stored once, since photos are rarely
 changed after they are added. Check the size with `du -sh versions`.
 
+## Editing place files on the server
+
+The place files in `files/places/` can be changed with any text editor (or
+Obsidian), and new ones added there or deleted. Before each sync from a
+device (at most every few seconds), and when it starts, the server looks at
+that folder: a changed, new or deleted `.md` file becomes a change just like
+one from a device, kept as a new version in `versions/`. Devices get it on
+their next sync, and if one changed the same place meanwhile, the two
+versions are merged as usual ([sync](sync.md)). The server log says what it
+found, e.g. `changed in files/: places/TN-knoxville-luca.md`.
+
+- **The format:** a file must start with its YAML header (a line `---`) and
+  have a `name`; one that doesn't is not synced, and the log says why. The
+  header's fields are in [data-format.md](data-format.md).
+- **The file name:** a new file can have any name ending in `.md`; the app
+  renames it to `<STATE>-<city>-<name>.md` the next time it loads (and so
+  does any place whose name, town or state you changed).
+- **Not while saving:** a file saved less than two seconds ago is left for
+  the next check, in case it is still being written.
+- **Deleting:** a file deleted from `files/places/` deletes the place
+  (its earlier versions stay). If the whole folder is empty or missing,
+  nothing is deleted.
+- **Images:** files under `files/media/` are not checked; add photos in the
+  app.
+
+Each place file in `files/` is a copy of its version, not a hard link (since
+2.18.0; the server makes the copies when it first starts), so an editor that
+saves into the file itself can't change a saved version.
+
 ## Getting an old version back
 
 The app has no screen for this yet. By hand:
@@ -103,7 +134,14 @@ The app has no screen for this yet. By hand:
    cat versions/places/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF
    ```
 
-3. To restore it, put it in a ZIP under its journal path and import that ZIP
+3. To restore it, copy it over the file in `files/`; the next sync picks it
+   up ([editing place files](#editing-place-files-on-the-server)):
+
+   ```bash
+   cp versions/places/TN-knoxville-main-street-tavern.md/mw0xb152-UMBg_mwF files/places/TN-knoxville-main-street-tavern.md
+   ```
+
+   Or put it in a ZIP under its journal path and import that ZIP
    in the app (**Settings → Import ZIP**). Files with the same path are
    replaced and everything else is kept; the device then syncs the restored
    version to the server as a new revision.

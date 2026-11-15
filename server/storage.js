@@ -3,8 +3,8 @@
 //                           calendar links
 //   versions/<path>/<rev>   every version of every file (the backup history)
 //   files/<path>            the current version of each file, as a plain folder
-//                           you can back up or browse (read-only: edits there
-//                           are not synced)
+//                           to browse; place files (.md) there can be edited,
+//                           and the server syncs the edits (files.js: scanDisk)
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync, linkSync, copyFileSync, rmSync, existsSync, createReadStream, statSync } from 'node:fs';
@@ -70,21 +70,55 @@ export function openStorage(dataDir) {
       return { stream: Readable.toWeb(createReadStream(file)), size: statSync(file).size };
     },
 
-    // Keeps files/ in step with the index (a hard link, so no extra space).
+    // Keeps files/ in step with the index. Images are hard links (no extra
+    // space); place files are copies, since they may be edited there, and an
+    // editor that saves in place would otherwise change the saved version
+    // too. What a place file looks like is noted, to notice edits.
     setCurrent(path, rev) {
       const target = currentPath(path);
       mkdirSync(dirname(target), { recursive: true });
       const tmp = `${target}.tmp`;
       rmSync(tmp, { force: true });
+      const editable = path.endsWith('.md');
       try {
+        if (editable) throw new Error('copy');
         linkSync(versionPath(path, rev), tmp);
       } catch {
         copyFileSync(versionPath(path, rev), tmp);
       }
       renameSync(tmp, target);
+      if (editable) {
+        const st = statSync(target);
+        db.prepare(`INSERT INTO disk_files (path, rev, mtime_ms, size, ino) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(path) DO UPDATE SET rev = excluded.rev, mtime_ms = excluded.mtime_ms, size = excluded.size, ino = excluded.ino`)
+          .run(path, rev, st.mtimeMs, st.size, String(st.ino));
+      }
     },
     clearCurrent(path) {
       rmSync(currentPath(path), { force: true });
+      db.prepare('DELETE FROM disk_files WHERE path = ?').run(path);
+    },
+    // The files directly in files/<dir> (e.g. 'places/'), with their size,
+    // modification time and inode; [] if there is no such folder.
+    listCurrent(dir) {
+      let names;
+      try { names = readdirSync(currentPath(dir), { withFileTypes: true }); } catch { return []; }
+      return names.filter((d) => d.isFile()).map((d) => {
+        const path = `${dir}${d.name}`;
+        try {
+          const st = statSync(currentPath(path));
+          return { path, mtimeMs: st.mtimeMs, size: st.size, ino: String(st.ino) };
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+    },
+    readCurrent(path) {
+      try {
+        return readFileSync(currentPath(path));
+      } catch {
+        return null;
+      }
     },
 
     close: () => db.close(),

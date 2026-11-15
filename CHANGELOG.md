@@ -20,6 +20,22 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.18.0] - 2026-11-15
+
+### Added
+- Place files edited on the server, in `DATA_DIR/files/places/`, sync to
+  your devices: before each sync (and when it starts) the server turns a
+  changed, new or deleted `.md` file there into a change like one from a
+  device, kept as a new version. A file without a YAML header or a name is
+  not synced, and the server log says why. See
+  [docs/storage-and-backups.md](docs/storage-and-backups.md#editing-place-files-on-the-server).
+
+### Changed
+- Place files in `files/` are copies of their versions, not hard links,
+  so an editor saving into a file can't change the saved history. The
+  server makes the copies when it starts (a database change that applies
+  itself; restart it after updating).
+
 ## [2.17.0] - 2026-11-14
 
 ### Added
