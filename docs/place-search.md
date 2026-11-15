@@ -44,6 +44,17 @@ On the map, the note about places without a location offers to find the
 ones that have an address: "Find them from the address" looks each one up
 (one a second, as Nominatim asks) and saves the locations found.
 
+Where OpenStreetMap has no house numbers (common on country roads), only the
+street is found, and the point is somewhere along it, maybe miles off. The
+app says so when that happens.
+
+The edit form has the **Location** field (latitude, longitude) to set it
+yourself: type or paste it as `35.0737, -85.0931` (as Google Maps shows it
+when you press on the place), or paste a Google Maps link with the location
+in it. **From the address** looks the address up again into the field. Links
+under it open the location in Apple Maps or Google Maps, to check it. A
+location typed or found there is saved as it is, without another lookup.
+
 ## Check in
 
 The + on the Timeline is for checking in where you are: it lists the places

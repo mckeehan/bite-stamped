@@ -407,6 +407,21 @@ export function distance(a, b) {
 
 // Restaurant names compared loosely: case, accents, apostrophes, "&"/"and"
 // and a leading "The" don't matter.
+// A location typed or pasted in: "35.0737, -85.0931", "35.0737 -85.0931",
+// or a map link with the two in it (Google Maps' "@35.07,-85.09" or
+// "?q=35.07,-85.09"). → { lat, lon }; null when empty; undefined when it
+// isn't a location.
+export function parseLatLon(text) {
+  const s = String(text ?? '').trim();
+  if (!s) return null;
+  const pair = s.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/) || s.match(/(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)/);
+  if (!pair) return undefined;
+  const lat = Number(pair[1]);
+  const lon = Number(pair[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return undefined;
+  return { lat, lon };
+}
+
 export function nameKey(name) {
   return str(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/['’`]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^the /, '');

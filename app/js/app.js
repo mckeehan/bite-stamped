@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, notePreview, isFoodPlace, placeSymbol, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance,
+  newRestaurant, notePreview, isFoodPlace, placeSymbol, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance, parseLatLon,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyPlaces, placesAround, formatDistance, fallbackSearch, addressAt, locationOf } from './places.js';
@@ -469,15 +469,23 @@ function renderList(tab) {
   // OpenStreetMap asks), saves each one found, then draws the map again.
   const findLocations = async (places, note) => {
     let found = 0;
+    let streetOnly = 0;
     for (const [i, r] of places.entries()) {
       note.textContent = `Finding ${i + 1} of ${places.length}: ${r.name}…`;
       try {
         const at = await locationOf(r);
-        if (at) { await repo.save({ ...r, ...at }); found++; }
+        if (at) {
+          await repo.save({ ...r, lat: Math.round(at.lat * 1e6) / 1e6, lon: Math.round(at.lon * 1e6) / 1e6 });
+          found++;
+          if (!at.exact) streetOnly++;
+        }
       } catch {}
       if (!$('#mapBox')) return; // left the screen
     }
-    toast(found === places.length ? `Found ${found === 1 ? 'it' : `all ${found}`}` : `Found ${found} of ${places.length}; OpenStreetMap doesn’t know the other addresses.`);
+    toast([
+      found === places.length ? `Found ${found === 1 ? 'it' : `all ${found}`}.` : `Found ${found} of ${places.length}; OpenStreetMap doesn’t know the other addresses.`,
+      streetOnly ? `For ${streetOnly === 1 ? 'one' : streetOnly} only the street was found, so ${streetOnly === 1 ? 'its pin is' : 'their pins are'} somewhere along it: edit to set the location.` : '',
+    ].filter(Boolean).join(' '));
     render(); // the list screen again, with them on the map
   };
 
@@ -1006,6 +1014,14 @@ function renderEdit(path, params, resume = null) {
         <label>State / region <input name="state" value="${esc(r.state)}" autocomplete="off"></label>
       </div>
       <label>Country <input name="country" value="${esc(r.country)}" autocomplete="off"></label>
+      <div class="field location-field">
+        <label for="locationInput">Location <small class="muted">(latitude, longitude)</small></label>
+        <div class="location-row">
+          <input id="locationInput" name="location" value="${r.lat === null || r.lon === null ? '' : `${r.lat}, ${r.lon}`}" placeholder="e.g. 35.0737, -85.0931" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button type="button" class="btn" id="findLocation">From the address</button>
+        </div>
+        <p class="muted small location-note" id="locationNote" role="status"></p>
+      </div>
       <label>Website <input name="website" inputmode="url" value="${esc(r.website)}" autocomplete="off"></label>
       <label>Phone <input name="phone" type="tel" value="${esc(r.phone)}" autocomplete="off"></label>
       <label>Tags <input name="tags" value="${esc(r.tags.join(', '))}" list="tagList" placeholder="comma separated" autocomplete="off"></label>
@@ -1035,6 +1051,69 @@ function renderEdit(path, params, resume = null) {
     form.toTry.addEventListener('change', () => { $('#visitNote').hidden = form.toTry.checked; });
   }
 
+  // The location: typed or pasted in, found from the address, or filled in by
+  // the place search (into the hidden lat and lon). Once set here, saving
+  // doesn't look the address up again.
+  const locInput = $('#locationInput');
+  const locNote = $('#locationNote');
+  let locationSet = false;
+  const showLocation = (message = '') => {
+    const at = parseLatLon(locInput.value);
+    if (at === undefined) {
+      locNote.textContent = 'Not a location: type it as latitude, longitude (e.g. 35.0737, -85.0931), or paste a map link.';
+      locNote.classList.add('error');
+      return;
+    }
+    locNote.classList.remove('error');
+    locNote.innerHTML = [message ? esc(message) : '', at
+      ? `Check it on ${pointLinks(at.lat, at.lon, form.name.value || 'Location').map(([label, href]) => `<a href="${esc(href)}" target="_blank" rel="noopener">${label}</a>`).join(' or ')}.`
+      : ''].filter(Boolean).join(' ');
+  };
+  const setLocation = (at, message) => {
+    form.lat.value = at ? at.lat : '';
+    form.lon.value = at ? at.lon : '';
+    locInput.value = at ? `${at.lat}, ${at.lon}` : '';
+    showLocation(message);
+  };
+  locInput.addEventListener('input', () => {
+    locationSet = true;
+    const at = parseLatLon(locInput.value);
+    if (at !== undefined) { form.lat.value = at ? at.lat : ''; form.lon.value = at ? at.lon : ''; }
+    showLocation();
+  });
+  // The place search filled in the form (places.js results come with a location).
+  form.addEventListener('placefilled', () => {
+    const lat = form.lat.value === '' ? null : Number(form.lat.value);
+    setLocation(lat === null ? null : { lat, lon: Number(form.lon.value) });
+  });
+  const addressOf = () => ({ address: form.address.value.trim(), city: form.city.value.trim(), state: form.state.value.trim(), country: form.country.value.trim(), countryCode: form.countryCode.value.trim() });
+  // Rounded to about 10 cm, as a map shows it.
+  const rounded = (at) => ({ lat: Math.round(at.lat * 1e6) / 1e6, lon: Math.round(at.lon * 1e6) / 1e6 });
+  const STREET_ONLY = 'Only the street was found (the map has no house numbers there), so this is somewhere along it: check it, or type the location.';
+  $('#findLocation').addEventListener('click', async (e) => {
+    const where = addressOf();
+    if (!where.address) { showLocation('Type the address first.'); return; }
+    if (!navigator.onLine) { showLocation('You are offline.'); return; }
+    const b = e.currentTarget;
+    b.disabled = true;
+    b.textContent = 'Finding…';
+    try {
+      const found = await locationOf(where);
+      if (found) {
+        locationSet = true;
+        setLocation(rounded(found), found.exact ? 'Found from the address.' : STREET_ONLY);
+      } else {
+        showLocation('That address isn’t on OpenStreetMap: type the location instead.');
+      }
+    } catch {
+      showLocation('The address lookup is not available right now.');
+    } finally {
+      b.disabled = false;
+      b.textContent = 'From the address';
+    }
+  });
+  showLocation();
+
   // The address as it was, to tell whether it changed.
   const whereKey = (x) => [x.address, x.city, x.state, x.country].map((s) => String(s || '').trim().toLowerCase()).join('|');
   const whereBefore = whereKey(r);
@@ -1043,6 +1122,7 @@ function renderEdit(path, params, resume = null) {
     e.preventDefault();
     if (saving) return;
     const f = form.elements;
+    if (parseLatLon(locInput.value) === undefined) { locInput.focus(); showLocation(); return; }
     Object.assign(r, {
       name: f.name.value.trim(),
       rating: starValue(form),
@@ -1068,15 +1148,19 @@ function renderEdit(path, params, resume = null) {
     // already has one, and keeps it unless its address was changed.
     const changed = whereKey(r) !== whereBefore;
     const picked = !existing && r.lat !== null;
-    if (r.address && navigator.onLine && (r.lat === null || (changed && !picked))) {
+    if (r.address && navigator.onLine && !locationSet && (r.lat === null || (changed && !picked))) {
       saving = true;
       const button = $('#saveBtn');
       button.disabled = true;
       button.textContent = 'Finding…';
       try {
         const found = await Promise.race([locationOf(r), new Promise((resolve) => setTimeout(() => resolve(undefined), 8000))]);
-        if (found) Object.assign(r, found);
-        else if (found === null && r.lat === null) toast('Saved. That address isn’t on OpenStreetMap, so the place isn’t on the map.');
+        if (found) {
+          Object.assign(r, rounded(found));
+          if (!found.exact) toast('Saved. Only the street was found, so the pin is somewhere along it: edit the place to set its location.');
+        } else if (found === null && r.lat === null) {
+          toast('Saved. That address isn’t on OpenStreetMap, so the place isn’t on the map: edit it to type its location.');
+        }
       } catch {}
     }
     // A new place that isn't just "to try" was visited: record a visit for now,
@@ -1647,6 +1731,7 @@ function setUpPlacePicker(form, onFill = () => {}, query = '', { at = null, visi
   });
 
   const showForm = () => {
+    form.dispatchEvent(new Event('placefilled'));
     picker.hidden = true;
     form.hidden = false;
     $('#saveBtn').hidden = false;

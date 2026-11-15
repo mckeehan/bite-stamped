@@ -310,6 +310,13 @@ label, .field { display: grid; gap: 4px; font-size: 0.9rem; color: var(--muted);
 label > input, label > textarea, .field > input { color: var(--text); }
 label.check { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 1rem; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.location-field { display: grid; gap: 6px; }
+.location-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.location-row input { flex: 1 1 240px; min-width: 0; }
+.location-row .btn { white-space: nowrap; }
+.location-note:empty { display: none; }
+.location-note { margin: 0; }
+.location-note.error { color: var(--danger); }
 .stack { display: grid; gap: 8px; justify-items: start; }
 
 .place-picker { display: grid; gap: 4px; }

@@ -20,6 +20,19 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.23.0] - 2026-11-15
+
+### Added
+- The edit form has a **Location** field (latitude, longitude) to correct a
+  place's location: type or paste it (e.g. `35.0737, -85.0931`, or a Google
+  Maps link), or press **From the address** to look it up again. Links under
+  it show the location in Apple Maps or Google Maps.
+
+### Changed
+- When OpenStreetMap only knows the street of an address (no house
+  numbers there), the app says the location is somewhere along the street
+  instead of quietly putting the pin there.
+
 ## [2.22.0] - 2026-11-15
 
 ### Added

@@ -212,3 +212,14 @@ test('a place without a photo gets a symbol for its kind', () => {
   assert.equal(sym('Tire shop'), '🔧');
   assert.equal(sym('Something else entirely'), '📍', '"entirely" has no tire');
 });
+
+test('parseLatLon reads a typed or pasted location', async () => {
+  const { parseLatLon } = await import('../app/js/model.js');
+  assert.deepEqual(parseLatLon('35.07374998231652, -85.0931070877166'), { lat: 35.07374998231652, lon: -85.0931070877166 });
+  assert.deepEqual(parseLatLon(' 35.0737 -85.0931 '), { lat: 35.0737, lon: -85.0931 });
+  assert.deepEqual(parseLatLon('https://www.google.com/maps/place/Couch%27s/@35.0737,-85.0931,17z/data=x'), { lat: 35.0737, lon: -85.0931 });
+  assert.deepEqual(parseLatLon('https://www.google.com/maps/search/?api=1&query=35.0737,-85.0931'), { lat: 35.0737, lon: -85.0931 });
+  assert.equal(parseLatLon(''), null);
+  assert.equal(parseLatLon('somewhere'), undefined);
+  assert.equal(parseLatLon('95, 10'), undefined);
+});

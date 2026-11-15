@@ -41,8 +41,9 @@ export async function addressAt({ lat, lon }) {
   return addressParts(hit.address);
 }
 
-// Where an address is: { lat, lon }, or null when OpenStreetMap doesn't know
-// it. Needs a street address (a town alone would put the pin in its middle).
+// Where an address is: { lat, lon, exact }, or null when OpenStreetMap
+// doesn't know it. `exact` is false when only the street was found (no house
+// numbers there on the map): the point is then somewhere along it. Needs a street address (a town alone would put the pin in its middle).
 // First the address in its parts, then as one line.
 export async function locationOf({ address, city, state, country, countryCode }) {
   const street = String(address || '').trim();
@@ -59,7 +60,9 @@ export async function locationOf({ address, city, state, country, countryCode })
     hits = await request('search', line);
   }
   const hit = hits[0];
-  return hit ? { lat: Number(hit.lat), lon: Number(hit.lon) } : null;
+  if (!hit) return null;
+  const streetOnly = !hit.address?.house_number && (hit.category === 'highway' || hit.addresstype === 'road');
+  return { lat: Number(hit.lat), lon: Number(hit.lon), exact: !streetOnly };
 }
 
 function addressParts(a) {
