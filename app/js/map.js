@@ -1,5 +1,8 @@
 // A small slippy map: OpenStreetMap tiles, drag to pan, pinch / wheel /
 // double-tap / buttons to zoom, and pins that call back when tapped.
+// Zoomed out, pins close together become one circle with their number
+// (tap it to zoom in), and only what is on screen is drawn, so moving the
+// map stays quick with thousands of places.
 // No library. Tiles need a connection; pins and everything else work offline.
 // Tile usage policy: https://operations.osmfoundation.org/policies/tiles/
 
@@ -11,6 +14,10 @@ const MAX_ZOOM = 19;
 export const START_ZOOM = 13;
 // From this close in (a neighbourhood across), pins show their names.
 export const LABEL_ZOOM = 15;
+// Below this, pins closer than CLUSTER_PX on screen are grouped.
+const CLUSTER_ZOOM = LABEL_ZOOM;
+const CLUSTER_PX = 60;
+const MERGE_PX = 44;
 
 // Web Mercator: lon/lat ↔ world position in [0, 1).
 const toWorld = (lat, lon) => {
@@ -49,6 +56,7 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'map-pin';
+      el.hidden = true; // until drawn on screen
       el.title = p.label;
       el.setAttribute('aria-label', p.label);
       const name = document.createElement('span');
@@ -64,8 +72,102 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
         draw(); // its name now goes before the others'
       });
       pinLayer.append(el);
-      return { ...p, world: toWorld(p.lat, p.lon), el, name, nameWidth: 0 };
+      return { ...p, world: toWorld(p.lat, p.lon), el, name, nameWidth: 0, on: false, screen: null };
     });
+
+  // Groups of pins per whole zoom level, worked out once each: pins in the
+  // same CLUSTER_PX square of the map at that zoom. Close in, each pin is
+  // its own group.
+  const groupCache = new Map();
+  function groupsAt(z) {
+    if (z >= CLUSTER_ZOOM) z = CLUSTER_ZOOM;
+    if (groupCache.has(z)) return groupCache.get(z);
+    let groups;
+    if (z >= CLUSTER_ZOOM) {
+      groups = placed.map((p) => ({ world: p.world, members: [p] }));
+    } else {
+      const cell = CLUSTER_PX / (TILE * 2 ** z);
+      const cells = new Map();
+      for (const p of placed) {
+        const key = `${Math.floor(p.world.x / cell)}:${Math.floor(p.world.y / cell)}`;
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(p);
+      }
+      const middle = (members) => ({
+        x: members.reduce((s, p) => s + p.world.x, 0) / members.length,
+        y: members.reduce((s, p) => s + p.world.y, 0) / members.length,
+      });
+      // Where a circle goes is the middle of its places, so circles from
+      // neighbouring squares can still land on each other: those closer
+      // than MERGE_PX become one, the bigger ones taking in the smaller.
+      const near = MERGE_PX / (TILE * 2 ** z);
+      const kept = new Map(); // square of side `near` → groups kept there
+      groups = [];
+      for (const members of [...cells.values()].sort((a, b) => b.length - a.length)) {
+        const world = middle(members);
+        const gx = Math.floor(world.x / near);
+        const gy = Math.floor(world.y / near);
+        let into = null;
+        for (let dy = -1; dy <= 1 && !into; dy++) {
+          for (let dx = -1; dx <= 1 && !into; dx++) {
+            into = (kept.get(`${gx + dx}:${gy + dy}`) || []).find((g) => Math.hypot(g.world.x - world.x, g.world.y - world.y) < near) || null;
+          }
+        }
+        if (into) { into.members.push(...members); continue; }
+        const group = { members, world };
+        groups.push(group);
+        const key = `${gx}:${gy}`;
+        if (!kept.has(key)) kept.set(key, []);
+        kept.get(key).push(group);
+      }
+      // A group that took others in sits in the middle of all its places.
+      for (const g of groups) g.world = middle(g.members);
+    }
+    groupCache.set(z, groups);
+    return groups;
+  }
+
+  // Circles for groups, reused from draw to draw.
+  const circles = [];
+  let circlesUsed = 0;
+  function circle(group) {
+    let el = circles[circlesUsed];
+    if (!el) {
+      el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'map-cluster';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        zoomToGroup(el.group);
+      });
+      pinLayer.append(el);
+      circles.push(el);
+    }
+    circlesUsed++;
+    const n = group.members.length;
+    if (el.group?.members.length !== n) {
+      el.textContent = n > 999 ? `${Math.floor(n / 1000)}k` : String(n);
+      el.setAttribute('aria-label', `${n} places: zoom in`);
+      el.dataset.size = n < 10 ? 's' : n < 100 ? 'm' : 'l';
+    }
+    el.group = group;
+    el.hidden = false;
+    return el;
+  }
+
+  // Tapping a circle: zoom in until its places fit (at least one step).
+  function zoomToGroup(group) {
+    const xs = group.members.map((p) => p.world.x);
+    const ys = group.members.map((p) => p.world.y);
+    const pad = 60;
+    const zx = Math.log2((width - pad * 2) / TILE / Math.max(Math.max(...xs) - Math.min(...xs), 1e-9));
+    const zy = Math.log2((height - pad * 2) / TILE / Math.max(Math.max(...ys) - Math.min(...ys), 1e-9));
+    moved = true;
+    center = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+    zoom = Math.max(Math.floor(zoom) + 1, Math.min(MAX_ZOOM - 1, Math.floor(Math.min(zx, zy))));
+    clampCenter();
+    draw();
+  }
   let hereDot = null;
   const showHere = () => {
     if (!here || hereDot) return;
@@ -111,11 +213,28 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
     for (const [key, img] of tiles) {
       if (!wanted.has(key)) { img.remove(); tiles.delete(key); }
     }
-    for (const p of placed) {
-      const s = toScreen(p.world);
-      p.el.style.transform = `translate(${s.x}px, ${s.y}px)`;
-      p.screen = s;
+    // Pins and circles on screen (a little beyond, so they don't pop in at
+    // the edges); the rest are hidden, not moved.
+    const groups = groupsAt(Math.floor(zoom + 1e-6));
+    circlesUsed = 0;
+    const onNow = new Set();
+    for (const g of groups) {
+      const s = toScreen(g.world);
+      if (s.x < -60 || s.x > width + 60 || s.y < -40 || s.y > height + 60) continue;
+      if (g.members.length === 1) {
+        const p = g.members[0];
+        p.screen = s;
+        p.el.style.transform = `translate(${s.x}px, ${s.y}px)`;
+        onNow.add(p);
+      } else {
+        circle(g).style.transform = `translate(${s.x}px, ${s.y}px)`;
+      }
     }
+    for (const p of placed) {
+      const on = onNow.has(p);
+      if (on !== p.on) { p.el.hidden = !on; p.on = on; }
+    }
+    for (let i = circlesUsed; i < circles.length; i++) if (!circles[i].hidden) circles[i].hidden = true;
     drawLabels();
     if (hereDot) {
       const s = toScreen(toWorld(here.lat, here.lon));
@@ -131,7 +250,7 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
     const on = zoom >= LABEL_ZOOM - 0.01;
     if (on !== labelsOn) container.classList.toggle('map-labels', (labelsOn = on));
     if (!on) return;
-    const visible = placed.filter((p) => p.screen.x > -160 && p.screen.x < width + 20 && p.screen.y > -20 && p.screen.y < height + 40);
+    const visible = placed.filter((p) => p.on && p.screen.x > -160 && p.screen.x < width + 20 && p.screen.y > -20 && p.screen.y < height + 40);
     // Widths once each (shown names are measured the first time).
     const unmeasured = visible.filter((p) => !p.nameWidth);
     for (const p of unmeasured) p.name.hidden = false;

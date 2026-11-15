@@ -20,6 +20,18 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.20.0] - 2026-11-15
+
+### Added
+- Zoomed out, places close together on the map become one circle with
+  their number; tapping it zooms in until its places fit. Circles never
+  sit on top of each other. From the zoom where names show, every place
+  has its own pin again.
+
+### Changed
+- The map draws only the pins and circles on screen, so moving it stays
+  quick with thousands of places.
+
 ## [2.19.0] - 2026-11-15
 
 ### Added

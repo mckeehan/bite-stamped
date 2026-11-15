@@ -575,6 +575,27 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
 }
 .map-pin.selected { transform-origin: 50% 100%; }
+.map-pin[hidden], .map-cluster[hidden] { display: none; }
+/* Several places close together, zoomed out: a circle with their number,
+   centred on them (map.js: groupsAt). */
+.map-cluster {
+  position: absolute;
+  left: -17px;
+  top: -17px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font: 700 14px/1 system-ui, sans-serif;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.map-cluster[data-size="m"] { left: -20px; top: -20px; width: 40px; height: 40px; }
+.map-cluster[data-size="l"] { left: -24px; top: -24px; width: 48px; height: 48px; font-size: 13px; }
 .map-pin.selected::before { background: #111111; border-color: var(--accent); }
 .map-pin::after {
   content: '';
