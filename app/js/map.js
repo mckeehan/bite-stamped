@@ -9,6 +9,8 @@ const MIN_ZOOM = 2;
 const MAX_ZOOM = 19;
 // How close the map starts around `focus`: a few miles across on a phone.
 export const START_ZOOM = 13;
+// From this close in (a neighbourhood across), pins show their names.
+export const LABEL_ZOOM = 15;
 
 // Web Mercator: lon/lat ↔ world position in [0, 1).
 const toWorld = (lat, lon) => {
@@ -16,7 +18,9 @@ const toWorld = (lat, lon) => {
   return { x: (lon + 180) / 360, y: 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI) };
 };
 
-// `pins`: [{ lat, lon, label, id }]. `onPin(id)` when one is tapped,
+// `pins`: [{ lat, lon, label, id }], the first ones the most important:
+// zoomed in, their names are shown first where names would overlap.
+// `onPin(id)` when one is tapped,
 // `onPin(null)` when the map itself is tapped. With `focus` ({ lat, lon }),
 // the map starts close around it (START_ZOOM) instead of showing every pin,
 // unless the pins fit at that zoom anyway.
@@ -47,14 +51,20 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
       el.className = 'map-pin';
       el.title = p.label;
       el.setAttribute('aria-label', p.label);
+      const name = document.createElement('span');
+      name.className = 'map-label';
+      name.textContent = p.label;
+      name.setAttribute('aria-hidden', 'true');
+      el.append(name);
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         for (const q of placed) q.el.classList.toggle('selected', q.el === el);
         el.parentNode.append(el); // on top of its neighbours
         onPin(p.id);
+        draw(); // its name now goes before the others'
       });
       pinLayer.append(el);
-      return { ...p, world: toWorld(p.lat, p.lon), el };
+      return { ...p, world: toWorld(p.lat, p.lon), el, name, nameWidth: 0 };
     });
   let hereDot = null;
   const showHere = () => {
@@ -104,11 +114,49 @@ export function createMap(container, { pins = [], onPin = () => {}, here = null,
     for (const p of placed) {
       const s = toScreen(p.world);
       p.el.style.transform = `translate(${s.x}px, ${s.y}px)`;
+      p.screen = s;
     }
+    drawLabels();
     if (hereDot) {
       const s = toScreen(toWorld(here.lat, here.lon));
       hereDot.style.transform = `translate(${s.x}px, ${s.y}px)`;
     }
+  }
+
+  // Names next to the pins, once zoomed in far enough: the selected pin's
+  // first, then in the order given, each only where it doesn't cover a name
+  // already shown (or a pin's own name, its pin).
+  let labelsOn = false;
+  function drawLabels() {
+    const on = zoom >= LABEL_ZOOM - 0.01;
+    if (on !== labelsOn) container.classList.toggle('map-labels', (labelsOn = on));
+    if (!on) return;
+    const visible = placed.filter((p) => p.screen.x > -160 && p.screen.x < width + 20 && p.screen.y > -20 && p.screen.y < height + 40);
+    // Widths once each (shown names are measured the first time).
+    const unmeasured = visible.filter((p) => !p.nameWidth);
+    for (const p of unmeasured) p.name.hidden = false;
+    for (const p of unmeasured) p.nameWidth = p.name.offsetWidth || 1;
+    const order = [...visible.filter((p) => p.el.classList.contains('selected')), ...visible.filter((p) => !p.el.classList.contains('selected'))];
+    const taken = [];
+    const overlaps = (r) => taken.some((t) => r.x1 < t.x2 && r.x2 > t.x1 && r.y1 < t.y2 && r.y2 > t.y1);
+    // The pins themselves, so names don't cover them.
+    for (const p of order) taken.push({ x1: p.screen.x - 11, x2: p.screen.x + 11, y1: p.screen.y - 30, y2: p.screen.y });
+    const shown = new Set();
+    for (const p of order) {
+      // Right of the pin, level with its head (see .map-label); left of it
+      // where the right would run off the map.
+      const y1 = p.screen.y - 27;
+      const y2 = p.screen.y - 9;
+      const right = { x1: p.screen.x + 13, x2: p.screen.x + 15 + p.nameWidth, y1, y2 };
+      const left = { x1: p.screen.x - 15 - p.nameWidth, x2: p.screen.x - 13, y1, y2 };
+      const flip = right.x2 > width - 4 && left.x1 >= 4;
+      const r = flip ? left : right;
+      if (overlaps(r)) continue;
+      taken.push(r);
+      shown.add(p);
+      p.name.classList.toggle('left', flip);
+    }
+    for (const p of placed) p.name.hidden = !shown.has(p);
   }
 
   // Zoom to `z`, keeping the world point under screen point (sx, sy) in place.

@@ -586,6 +586,28 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
   border-radius: 50%;
   background: #fff;
 }
+/* A pin's name, right of it, once zoomed in (map.js: LABEL_ZOOM); dark text
+   with a light halo, readable on the map's light tiles. */
+.map-label {
+  display: none;
+  position: absolute;
+  left: 26px;
+  top: 3px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #111111;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff;
+  pointer-events: none;
+}
+.map-label.left { left: auto; right: 26px; }
+.map-labels .map-label { display: block; }
+.map-labels .map-label[hidden] { display: none; }
+.map-pin.selected .map-label { color: var(--accent); }
 .map-here {
   position: absolute;
   left: -8px;

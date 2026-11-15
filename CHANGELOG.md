@@ -20,6 +20,15 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.19.0] - 2026-11-15
+
+### Added
+- The map shows the names of places next to their pins once you zoom in
+  to about a neighbourhood across. Where names would cover each other,
+  the selected place's name comes first, then the others in the list's
+  order; zooming in further makes room for more. Names near the right
+  edge go to the left of their pin.
+
 ## [2.18.0] - 2026-11-15
 
 ### Added
