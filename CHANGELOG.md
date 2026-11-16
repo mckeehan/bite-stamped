@@ -20,6 +20,20 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.26.0] - 2026-11-16
+
+### Changed
+
+- Type and Cuisine (or Category) on the place form suggest what your journal
+  already has, as buttons under the field, narrowed as you type: values
+  starting with what's typed first, the most used first, with how many places
+  have each. Cuisine takes several values separated by commas, so it
+  suggests for the one being typed and leaves out those already there; it
+  suggests cuisines of places to eat for a place to eat, and categories of
+  the others for the rest. Type also offers the usual types not used yet.
+  (Type's suggestions were the phone's own list before, which doesn't
+  narrow well on an iPhone.)
+
 ## [2.25.0] - 2026-11-16
 
 ### Changed

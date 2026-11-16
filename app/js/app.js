@@ -914,6 +914,80 @@ function renderDetail(path) {
   });
 }
 
+// Suggestions under a field of the place form, from what the journal
+// already has, narrowed as you type: the values that start with what's typed
+// (or have a word that does) first, then those containing it, the most used
+// first. `values()` gives [{ value, count }]. With `list` the field holds
+// several values separated by commas (Cuisine), and the suggestions are for
+// the one being typed, leaving out those already in the field.
+const fold = (text) => String(text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+function suggestValues(input, values, { list = false, max = 8 } = {}) {
+  const box = document.createElement('div');
+  box.className = 'search-suggest field-suggest';
+  box.hidden = true;
+  (input.closest('label') || input).after(box);
+  const parts = () => {
+    const text = input.value;
+    const cut = list ? text.lastIndexOf(',') + 1 : 0;
+    return { before: text.slice(0, cut), typed: text.slice(cut).trim() };
+  };
+  const draw = () => {
+    if (document.activeElement !== input) { box.hidden = true; return; }
+    const { before, typed } = parts();
+    const q = fold(typed);
+    const taken = new Set(list ? before.split(',').map((t) => fold(t.trim())).filter(Boolean) : []);
+    const rank = (v) => {
+      const f = fold(v);
+      if (!q) return 2;
+      if (f === q) return -1; // already typed in full
+      if (f.startsWith(q)) return 0;
+      if (f.split(/[\s/&-]+/).some((w) => w.startsWith(q))) return 1;
+      return q.length > 1 && f.includes(q) ? 2 : -1; // inside a word: from two letters on
+    };
+    const shown = values()
+      .filter(({ value }) => !taken.has(fold(value)))
+      .map((v) => ({ ...v, rank: rank(v.value) }))
+      .filter((v) => v.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || b.count - a.count || a.value.localeCompare(b.value))
+      .slice(0, max);
+    box.innerHTML = shown.map((v, i) => `<button type="button" class="chip" data-i="${i}">${esc(v.value)}${v.count ? ` <small>${v.count}</small>` : ''}</button>`).join('');
+    box.hidden = !shown.length;
+    box.onclick = (e) => {
+      const b = e.target.closest('[data-i]');
+      if (!b) return;
+      const { before: start } = parts();
+      input.value = `${start ? `${start.trimEnd()} ` : ''}${shown[Number(b.dataset.i)].value}`;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      box.hidden = true;
+    };
+  };
+  // Tapping a suggestion mustn't take the focus (and the keyboard) away.
+  box.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+  input.addEventListener('input', draw);
+  input.addEventListener('focus', draw);
+  input.addEventListener('blur', () => { box.hidden = true; });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !box.hidden) { e.preventDefault(); box.hidden = true; } });
+}
+
+// How often each value appears among the places (case and accents aside,
+// written as most places write it). `split` for fields of several values.
+function countValues(texts, { split = false } = {}) {
+  const byKey = new Map();
+  for (const text of texts) {
+    for (const value of (split ? String(text || '').split(',') : [text]).map((t) => String(t || '').trim()).filter(Boolean)) {
+      const key = fold(value);
+      if (!byKey.has(key)) byKey.set(key, { count: 0, spellings: new Map() });
+      const entry = byKey.get(key);
+      entry.count++;
+      entry.spellings.set(value, (entry.spellings.get(value) || 0) + 1);
+    }
+  }
+  return [...byKey.values()].map(({ count, spellings }) => ({
+    value: [...spellings].sort((a, b) => b[1] - a[1])[0][0],
+    count,
+  }));
+}
+
 function peopleDatalist() {
   return `<datalist id="people">${repo.knownPeople().map((p) => `<option value="${esc(p)}">`).join('')}</datalist>`;
 }
@@ -1155,8 +1229,7 @@ function renderEdit(path, params, resume = null) {
       <div class="field"><span>Rating</span>${stars(r.rating, { input: true, size: 'large' })}</div>
       <label class="check"><input type="checkbox" name="toTry"${r.toTry ? ' checked' : ''}> I want to try this place</label>
       ${existing ? '' : `<p class="muted small visit-note" id="visitNote"${r.toTry ? ' hidden' : ''}>Saving also adds a visit for ${esc(formatDateTime(visitDate))}.</p>`}
-      <label>Type <input name="type" value="${esc(r.type)}" list="typeList" placeholder="e.g. Restaurant, Bar, Museum" autocomplete="off"></label>
-      <datalist id="typeList">${[...new Set([...PLACE_TYPES, ...repo.all().map((x) => x.type).filter(Boolean)])].map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
+      <label>Type <input name="type" value="${esc(r.type)}" placeholder="e.g. Restaurant, Bar, Museum" autocomplete="off"></label>
       <label><span id="cuisineLabel">${isFoodPlace(r) ? 'Cuisine' : 'Category'}</span> <input name="cuisine" value="${esc(r.cuisine)}" placeholder="${isFoodPlace(r) ? 'e.g. Thai, Pizza' : 'e.g. Art, History'}" autocomplete="off"></label>
       <label>Address <input name="address" value="${esc(r.address)}" autocomplete="off"></label>
       ${existing ? '' : '<p class="muted small" id="addressNote" role="status" hidden></p>'}
@@ -1192,6 +1265,19 @@ function renderEdit(path, params, resume = null) {
     form.cuisine.placeholder = food ? 'e.g. Thai, Pizza' : 'e.g. Art, History';
   };
   form.type.addEventListener('input', labelCuisine);
+
+  // Suggestions from the journal for Type, and for Cuisine (or Category)
+  // among places of the same sort: food ones for a place to eat.
+  const others = repo.all().filter((x) => x.path !== r.path);
+  const types = countValues(others.map((x) => x.type));
+  for (const t of PLACE_TYPES) if (!types.some((v) => fold(v.value) === fold(t))) types.push({ value: t, count: 0 });
+  suggestValues(form.type, () => types);
+  const cuisines = new Map(); // food? → values
+  suggestValues(form.cuisine, () => {
+    const food = isFoodPlace({ type: form.type.value.trim() });
+    if (!cuisines.has(food)) cuisines.set(food, countValues(others.filter((x) => isFoodPlace(x) === food).map((x) => x.cuisine), { split: true }));
+    return cuisines.get(food);
+  }, { list: true });
 
   if (!existing) {
     setUpPlacePicker(form, labelCuisine, resume ? resume.query : params.get('q') || '', {
