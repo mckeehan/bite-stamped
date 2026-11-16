@@ -20,6 +20,22 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.25.0] - 2026-11-16
+
+### Changed
+
+- The Timeline's calendar works like the month view in Apple's Calendar:
+  tapping a day (any day, with visits or not) picks it and lists its visits
+  under the month, earliest first. Tapping a visit opens the place; coming
+  back keeps the day picked. "Show in the timeline" jumps to that day in
+  the list. The calendar opens on today; another month opens on its first
+  day with visits.
+- The dots under each day are colored by the kind of place visited: food,
+  coffee & sweets, drinks, outdoors, things to do, travel, or shops & other.
+  A key under the month names the colors used in it.
+- The calendar has no search box: it always shows every visit. The search
+  is still there in the Timeline's list.
+
 ## [2.24.0] - 2026-11-15
 
 ### Added

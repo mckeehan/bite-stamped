@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, notePreview, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches, placeSymbol } from '../app/js/model.js';
+  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, notePreview, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches, placeSymbol, placeGroup, PLACE_GROUPS } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
   const r = newRestaurant({
@@ -222,4 +222,21 @@ test('parseLatLon reads a typed or pasted location', async () => {
   assert.equal(parseLatLon(''), null);
   assert.equal(parseLatLon('somewhere'), undefined);
   assert.equal(parseLatLon('95, 10'), undefined);
+});
+
+test('each place falls in a group of kinds, for the colors of the calendar', () => {
+  const group = (type, cuisine = '') => placeGroup(newRestaurant({ name: 'x', type, cuisine }));
+  assert.equal(group('Restaurant', 'BBQ'), 'food');
+  assert.equal(group(''), 'food');
+  assert.equal(group('Café'), 'sweets');
+  assert.equal(group('Ice cream'), 'sweets');
+  assert.equal(group('Brewery'), 'drinks');
+  assert.equal(group('Hiking trail'), 'outdoors');
+  assert.equal(group('Museum'), 'sights');
+  assert.equal(group('Gas station'), 'travel');
+  assert.equal(group('Hotel'), 'travel');
+  assert.equal(group('Post office'), 'other');
+  assert.equal(group('Grocery store'), 'other');
+  const names = PLACE_GROUPS.map(([k]) => k);
+  for (const t of ['Restaurant', 'Café', 'Bar', 'Park', 'Museum', 'Hotel', 'Shop', 'Other']) assert.ok(names.includes(group(t)));
 });

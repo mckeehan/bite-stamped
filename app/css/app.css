@@ -683,7 +683,19 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
 .cards.timeline { gap: 20px; }
 .cards.timeline li.day { scroll-margin-top: 12px; }
 /* The Timeline as a month calendar (app.js: fillCalendar). */
-.calendar { padding-bottom: 16px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.calendar { padding-bottom: 16px; }
+.cal-month { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+/* The colors of the kinds of places (model.js: PLACE_GROUPS), like Apple's
+   system colors, readable on light and dark. */
+.calendar {
+  --g-food: #ff9500;
+  --g-sweets: #ff5e99;
+  --g-drinks: #af52de;
+  --g-outdoors: #34c759;
+  --g-sights: #0a84ff;
+  --g-travel: #30b0c7;
+  --g-other: #8e8e93;
+}
 .cal-head { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin: 4px 0 8px; }
 .cal-title { margin: 0; text-align: center; font-size: 1.25rem; }
 .cal-head .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -703,13 +715,28 @@ body.with-tabs main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); 
   font: inherit;
 }
 .cal-day.blank { border-top-color: transparent; }
-.cal-day.has-visits { color: var(--text); font-weight: 600; cursor: pointer; }
-.cal-day.has-visits:active { background: var(--surface); }
+.cal-day { cursor: pointer; }
+.cal-day.has-visits { color: var(--text); font-weight: 600; }
+.cal-day:active:not(.blank) { background: var(--surface); }
+/* The day picked: a filled circle, as in Apple's Calendar (red when today). */
+.cal-day[aria-pressed="true"] .cal-num { background: var(--text); color: var(--bg); font-weight: 700; }
 .cal-num { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; }
-.cal-day.today .cal-num { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.cal-day.today .cal-num { color: var(--accent); font-weight: 700; }
+.cal-day.today[aria-pressed="true"] .cal-num { background: var(--accent); color: var(--on-accent); }
 .cal-dots { display: flex; gap: 3px; }
-.cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.cal-dots i, .cal-legend i { width: 7px; height: 7px; border-radius: 50%; background: var(--g-other); }
+.calendar [data-group="food"] { background: var(--g-food); }
+.calendar [data-group="sweets"] { background: var(--g-sweets); }
+.calendar [data-group="drinks"] { background: var(--g-drinks); }
+.calendar [data-group="outdoors"] { background: var(--g-outdoors); }
+.calendar [data-group="sights"] { background: var(--g-sights); }
+.calendar [data-group="travel"] { background: var(--g-travel); }
 .cal-foot { text-align: center; margin: 12px 0 0; }
+.cal-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin: 8px 0 0; color: var(--muted); }
+.cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cal-legend i { display: inline-block; }
+.cal-agenda { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.cal-agenda .cards { margin-bottom: 8px; }
 .day-heading { margin: 0 0 8px; font-size: 1.15rem; }
 
 .feed-url { font-size: 0.85rem; margin-bottom: 10px; }

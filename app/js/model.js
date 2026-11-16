@@ -180,6 +180,26 @@ export function placeSymbol(r) {
   return isFoodPlace(r) ? '🍽️' : '📍';
 }
 
+// Kinds of places, in broad groups, for the colors of the Timeline's calendar
+// (app.js: fillCalendar): from the place's symbol, so they agree with it.
+export const PLACE_GROUPS = [
+  ['food', 'Food'], ['sweets', 'Coffee & sweets'], ['drinks', 'Drinks'], ['outdoors', 'Outdoors'],
+  ['sights', 'Things to do'], ['travel', 'Travel'], ['other', 'Shops & other'],
+];
+const GROUP_SYMBOLS = {
+  sweets: '☕🍵🍩🍦🍬🍫🧁🥐🥯',
+  drinks: '🍷🥃🍺🍸',
+  outdoors: '🥾🐕🌲🏞️🏖️⛰️🌷🌳🏕️',
+  sights: '🦁🏊🎱🎳🕹️🎡🖼️🏛️🌉🎬🎭🏟️🏋️⛳',
+  travel: '⛽🧽🅿️🔧🚗🛏️🏨✈️🚆🚌🧭',
+  other: '🧺🛒',
+};
+export function placeGroup(r) {
+  const symbol = placeSymbol(r);
+  for (const [group, symbols] of Object.entries(GROUP_SYMBOLS)) if (symbols.includes(symbol)) return group;
+  return isFoodPlace(r) || symbol === '🍽️' ? 'food' : 'other';
+}
+
 // The page about a place on Foursquare (its terms ask for a link wherever
 // data from Foursquare is shown).
 export const foursquareURL = (id) => (id ? `https://foursquare.com/v/${encodeURIComponent(id)}` : '');

@@ -1,6 +1,6 @@
 import * as repo from './repo.js';
 import {
-  newRestaurant, notePreview, isFoodPlace, placeSymbol, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance, parseLatLon,
+  newRestaurant, notePreview, isFoodPlace, placeSymbol, placeGroup, PLACE_GROUPS, PLACE_TYPES, foursquareURL, sortVisits, lastVisit, displayRating, coverImage, matches, placeLine, directionLinks, today, now, findInJournal, distance, parseLatLon,
 } from './model.js';
 import { renderMarkdown } from './md.js';
 import { searchPlaces, locate, nearbyPlaces, placesAround, formatDistance, fallbackSearch, addressAt, locationOf } from './places.js';
@@ -203,8 +203,10 @@ let here = null; // device position, once "Nearest" asked for it
 // is there again on coming back (from a place, another tab); forgotten when
 // the list is shown as a list.
 const mapViews = {};
-// The month the Timeline's calendar shows (YYYY-MM; '' = this month).
+// The month the Timeline's calendar shows (YYYY-MM; '' = this month), and
+// the day picked in it (YYYY-MM-DD; '' = today, or the month's first visit).
 let calendarMonth = '';
+let calendarDay = '';
 
 function sortRestaurants(list, sort) {
   const away = (r) => (here && r.lat !== null && r.lon !== null ? distance(here, r) : Infinity);
@@ -512,6 +514,9 @@ function renderList(tab) {
     $('#cards').hidden = mapMode || calMode;
     $('#mapView').hidden = !mapMode;
     $('#calView').hidden = !calMode;
+    // The calendar has no search: it shows every visit.
+    $('.search-field').hidden = calMode;
+    if (calMode) $('#qSuggest').hidden = true;
     const [icon, label] = timeline
       ? (calMode ? [ICONS.list, 'Show as list'] : [ICONS.calendar, 'Show as calendar'])
       : (mapMode ? [ICONS.list, 'Show as list'] : [ICONS.map, 'Show on map']);
@@ -525,56 +530,91 @@ function renderList(tab) {
     else { map?.destroy(); map = null; if (calMode) fillCalendar(); else fillList(); }
   };
 
-  // The timeline as a month calendar: each day with its visits as dots (the
-  // ones the search finds), today circled. Tapping a day with visits shows
-  // the timeline from that day. Months by the arrows, by swiping, or Today.
+  // The timeline as a month calendar, as in Apple's Calendar: each day with
+  // a dot per visit (all of them: it has no search) in the color of the kind of
+  // place, today in red. The day picked has its visits listed below the
+  // month. Months by the arrows, by swiping, or Today.
+  let calVisits = new Map(); // YYYY-MM-DD → [{ r, v }], earliest first
   const fillCalendar = () => {
     const cal = $('#calView');
-    const visits = new Map(); // YYYY-MM-DD → number of visits
-    for (const r of shownRestaurants()) {
+    calVisits = new Map();
+    for (const r of everything) {
+      if (!r.visits.length) continue;
       for (const v of r.visits) {
         if (!v.date) continue;
         const day = v.date.slice(0, 10);
-        visits.set(day, (visits.get(day) || 0) + 1);
+        if (!calVisits.has(day)) calVisits.set(day, []);
+        calVisits.get(day).push({ r, v });
       }
     }
+    for (const list of calVisits.values()) list.sort((a, b) => a.v.date.localeCompare(b.v.date));
     const pad = (n) => String(n).padStart(2, '0');
     const todayKey = today();
     if (!calendarMonth) calendarMonth = todayKey.slice(0, 7);
     const [y, m] = calendarMonth.split('-').map(Number);
     const first = new Date(y, m - 1, 1);
     const days = new Date(y, m, 0).getDate();
+    const keys = [...Array(days)].map((_, i) => `${calendarMonth}-${pad(i + 1)}`);
+    // The day picked: kept while in this month; else today, or the first day with visits.
+    if (!calendarDay.startsWith(calendarMonth)) {
+      calendarDay = todayKey.startsWith(calendarMonth) ? todayKey : keys.find((k) => calVisits.has(k)) || keys[0];
+    }
     // The week starts where the device's language says (Sunday in the US).
     let weekStart = 0;
     try { weekStart = (new Intl.Locale(navigator.language).getWeekInfo?.() || new Intl.Locale(navigator.language).weekInfo)?.firstDay % 7 || 0; } catch {}
     const lead = (first.getDay() - weekStart + 7) % 7;
     const dayNames = [...Array(7)].map((_, i) => new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(new Date(2024, 0, 7 + weekStart + i)));
-    const inMonth = [...Array(days)].reduce((n, _, i) => n + (visits.get(`${calendarMonth}-${pad(i + 1)}`) || 0), 0);
+    let inMonth = 0;
+    const groups = new Set();
     let cells = '';
     for (let i = 0; i < lead; i++) cells += '<span class="cal-day blank"></span>';
-    for (let d = 1; d <= days; d++) {
-      const key = `${calendarMonth}-${pad(d)}`;
-      const n = visits.get(key) || 0;
-      const dots = n ? `<span class="cal-dots" aria-hidden="true">${'<i></i>'.repeat(Math.min(n, 3))}</span>` : '';
-      const label = `${formatDay(key)}${n ? `, ${n} visit${n > 1 ? 's' : ''}` : ''}`;
-      cells += n
-        ? `<button type="button" class="cal-day has-visits${key === todayKey ? ' today' : ''}" data-day="${key}" aria-label="${esc(label)}"><span class="cal-num">${d}</span>${dots}</button>`
-        : `<span class="cal-day${key === todayKey ? ' today' : ''}" aria-label="${esc(label)}"><span class="cal-num">${d}</span></span>`;
-    }
+    keys.forEach((key, i) => {
+      const list = calVisits.get(key) || [];
+      inMonth += list.length;
+      const kinds = list.map(({ r }) => placeGroup(r));
+      for (const k of kinds) groups.add(k);
+      const dots = list.length ? `<span class="cal-dots" aria-hidden="true">${kinds.slice(0, 4).map((k) => `<i data-group="${k}"></i>`).join('')}</span>` : '';
+      const label = `${formatDay(key)}${list.length ? `, ${list.length} visit${list.length > 1 ? 's' : ''}` : ''}`;
+      cells += `<button type="button" class="cal-day${list.length ? ' has-visits' : ''}${key === todayKey ? ' today' : ''}" data-day="${key}" aria-label="${esc(label)}" aria-pressed="${key === calendarDay}"><span class="cal-num">${i + 1}</span>${dots}</button>`;
+    });
     const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(first);
+    // The colors of the kinds of places this month.
+    const legend = PLACE_GROUPS.filter(([k]) => groups.has(k))
+      .map(([k, name]) => `<span><i data-group="${k}" aria-hidden="true"></i>${esc(name)}</span>`).join('');
     cal.innerHTML = `
-      <div class="cal-head">
-        <button type="button" class="icon-btn" data-month="-1" aria-label="Previous month">${ICONS.prev}</button>
-        <h2 class="cal-title">${esc(monthName)}</h2>
-        <button type="button" class="icon-btn" data-month="1" aria-label="Next month">${ICONS.next}</button>
+      <div class="cal-month">
+        <div class="cal-head">
+          <button type="button" class="icon-btn" data-month="-1" aria-label="Previous month">${ICONS.prev}</button>
+          <h2 class="cal-title">${esc(monthName)}</h2>
+          <button type="button" class="icon-btn" data-month="1" aria-label="Next month">${ICONS.next}</button>
+        </div>
+        <div class="cal-grid cal-names" aria-hidden="true">${dayNames.map((n) => `<span>${esc(n)}</span>`).join('')}</div>
+        <div class="cal-grid">${cells}</div>
+        <p class="muted small cal-foot">${inMonth ? `${inMonth} visit${inMonth > 1 ? 's' : ''} this month` : 'No visits this month'}${
+          calendarMonth === todayKey.slice(0, 7) ? '' : ' · <button type="button" class="text-btn" data-month="today">Today</button>'}</p>
+        ${legend ? `<p class="cal-legend small">${legend}</p>` : ''}
       </div>
-      <div class="cal-grid cal-names" aria-hidden="true">${dayNames.map((n) => `<span>${esc(n)}</span>`).join('')}</div>
-      <div class="cal-grid">${cells}</div>
-      <p class="muted small cal-foot">${inMonth ? `${inMonth} visit${inMonth > 1 ? 's' : ''} this month` : 'No visits this month'}${
-        calendarMonth === todayKey.slice(0, 7) ? '' : ' · <button type="button" class="text-btn" data-month="today">Today</button>'}</p>`;
+      <section class="cal-agenda" id="calAgenda" aria-live="polite"></section>`;
+    fillAgenda();
+  };
+  // The visits on the day picked, under the month.
+  const fillAgenda = () => {
+    const list = calVisits.get(calendarDay) || [];
+    const box = $('#calAgenda');
+    box.innerHTML = `<h2 class="day-heading">${esc(formatDay(calendarDay))}</h2>${
+      list.length
+        ? `<ul class="cards">${list.map(({ r, v }) => `<li>${visitCard(r, v)}</li>`).join('')}</ul>
+           <button type="button" class="text-btn" data-timeline="${calendarDay}">Show in the timeline</button>`
+        : '<p class="muted">No visits.</p>'}`;
+    hydrateImages(box);
+  };
+  const pickDay = (day) => {
+    calendarDay = day;
+    for (const b of $$('#calView .cal-day[data-day]')) b.setAttribute('aria-pressed', String(b.dataset.day === day));
+    fillAgenda();
   };
   const moveMonth = (step) => {
-    if (step === 'today') calendarMonth = today().slice(0, 7);
+    if (step === 'today') { calendarMonth = today().slice(0, 7); calendarDay = today(); }
     else {
       const [y, m] = calendarMonth.split('-').map(Number);
       const d = new Date(y, m - 1 + step, 1);
@@ -586,19 +626,20 @@ function renderList(tab) {
     const month = e.target.closest('[data-month]');
     if (month) { moveMonth(month.dataset.month === 'today' ? 'today' : Number(month.dataset.month)); return; }
     const day = e.target.closest('.cal-day[data-day]');
-    if (!day || swiped) return;
+    if (day) { if (!swiped) pickDay(day.dataset.day); return; }
+    const jump = e.target.closest('[data-timeline]');
+    if (!jump) return;
     // The timeline from that day.
     listState.timelineView = 'list';
     rememberList();
     fill();
-    fillList({ untilDay: day.dataset.day });
-    const heading = $(`#cards li.day[data-day="${day.dataset.day}"]`);
-    heading?.scrollIntoView({ block: 'start' });
+    fillList({ untilDay: jump.dataset.timeline });
+    $(`#cards li.day[data-day="${jump.dataset.timeline}"]`)?.scrollIntoView({ block: 'start' });
   });
   // Swiping left or right changes the month.
   let swipe = null;
   let swiped = false; // the click at the end of a swipe isn't a tap on a day
-  $('#calView').addEventListener('pointerdown', (e) => { swipe = { x: e.clientX, y: e.clientY }; swiped = false; });
+  $('#calView').addEventListener('pointerdown', (e) => { swipe = e.target.closest('.cal-month') ? { x: e.clientX, y: e.clientY } : null; swiped = false; });
   $('#calView').addEventListener('pointerup', (e) => {
     if (!swipe) return;
     const dx = e.clientX - swipe.x;
@@ -670,7 +711,7 @@ function renderList(tab) {
     if (tab === 'timeline') {
       listState.timelineView = listState.timelineView === 'calendar' ? 'list' : 'calendar';
       // The calendar opens on this month.
-      if (listState.timelineView === 'calendar') calendarMonth = '';
+      if (listState.timelineView === 'calendar') calendarMonth = calendarDay = '';
     } else {
       listState.view = listState.view === 'map' ? 'list' : 'map';
       if (listState.view === 'list') for (const key of Object.keys(mapViews)) delete mapViews[key];
