@@ -18,13 +18,17 @@ function isEmpty(v) {
   return v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
 }
 
-// Keys with empty values are left out, so the files stay short.
-export function stringify(obj, indent = 0) {
+// Keys with empty values are left out, so the files stay short, except
+// those in `keepEmpty` (written as `key:`, as Obsidian writes an empty property).
+export function stringify(obj, indent = 0, keepEmpty = null) {
   const pad = ' '.repeat(indent);
   let out = '';
   for (const [key, value] of Object.entries(obj)) {
-    if (isEmpty(value)) continue;
     const k = /^[\w-]+$/.test(key) ? key : JSON.stringify(key);
+    if (isEmpty(value)) {
+      if (keepEmpty?.has(key)) out += `${pad}${k}:\n`;
+      continue;
+    }
     if (Array.isArray(value)) {
       out += `${pad}${k}:\n` + stringifyList(value, indent);
     } else if (typeof value === 'object') {
@@ -254,7 +258,7 @@ export function parseFrontMatter(text) {
   return { data: parse(m[1]) || {}, body: m[2].replace(/^\r?\n/, '') };
 }
 
-export function stringifyFrontMatter(data, body) {
+export function stringifyFrontMatter(data, body, { keepEmpty = null } = {}) {
   const text = (body || '').trim();
-  return `---\n${stringify(data)}---\n${text ? '\n' + text + '\n' : ''}`;
+  return `---\n${stringify(data, 0, keepEmpty)}---\n${text ? '\n' + text + '\n' : ''}`;
 }

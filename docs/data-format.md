@@ -72,11 +72,24 @@ its page there (`https://foursquare.com/v/<id>`) is linked from the place's page
 
 A visit's `date` is the local date and time of the visit (`2026-10-12T19:30`),
 or just the date (`2026-10-12`) when the time is not known. Photo dates are
-dates only.
+dates only. `created` (when the place was added) and `updated` (last saved)
+are local date and time to the second (`2026-10-12T19:30:05`). All of these
+are forms Obsidian reads as dates. Files from before 2.27.0 have `created`
+and `updated` in UTC (`2026-10-12T23:30:05.123Z`); the app reads those as
+the same moment in local time and writes them in the new form when the
+place is next saved.
 
 **Settings → Export ZIP** gives you the files from a device; edit them with
 any editor (Obsidian works well) and **Import ZIP** them again. Files with the
 same path are replaced, everything else is kept (and then synced).
+
+Properties the app doesn't use, such as Obsidian's `aliases` and `cssclasses`
+or a link like `related: "[[Other place]]"`, are kept: saving the place in
+the app writes them back unchanged, after its own properties (an empty one
+as `key:`). When two devices change the same place, both sets are kept; for
+the same property, the one on the device that syncs keeps its value. Only
+top-level properties are kept this way: a field added inside a visit, dish or
+photo is still dropped.
 
 How the server stores these files and keeps their history:
 [storage-and-backups.md](storage-and-backups.md).

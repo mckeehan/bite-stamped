@@ -20,6 +20,22 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.27.0] - 2026-11-20
+
+### Changed
+
+- Properties of a place file that the app doesn't use, such as Obsidian's
+  `aliases`, `cssclasses` or links like `related: "[[Other place]]"`, are kept
+  when the place is saved in the app (they used to be dropped) and through
+  sync. An empty property stays as `key:`, the way Obsidian writes it. See
+  docs/data-format.md.
+- `created` and `updated` are written as local date and time to the second
+  (`2026-11-20T07:54:09`), which Obsidian shows and edits as a date & time.
+  They were UTC with milliseconds (`2026-11-20T12:54:09.123Z`), which
+  Obsidian shows as text. Older files are read the same way, as the same
+  moment in local time, and are written in the new form the next time the
+  place is saved.
+
 ## [2.26.1] - 2026-11-19
 
 ### Fixed

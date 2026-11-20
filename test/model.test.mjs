@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, notePreview, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches, placeSymbol, placeGroup, PLACE_GROUPS } from '../app/js/model.js';
+  fromMarkdown, toMarkdown, newRestaurant, placePath, fileWord, isFoodPlace, typeFromKind, foursquareURL, notePreview, stateCode, mediaDir, displayRating, matches, lastVisit, findInJournal, nameKey, nameMatches, placeSymbol, placeGroup, PLACE_GROUPS, mergeMarkdown, stamp } from '../app/js/model.js';
 
 test('a restaurant round-trips through Markdown', () => {
   const r = newRestaurant({
@@ -239,4 +239,58 @@ test('each place falls in a group of kinds, for the colors of the calendar', () 
   assert.equal(group('Grocery store'), 'other');
   const names = PLACE_GROUPS.map(([k]) => k);
   for (const t of ['Restaurant', 'Café', 'Bar', 'Park', 'Museum', 'Hotel', 'Shop', 'Other']) assert.ok(names.includes(group(t)));
+});
+
+// Properties added in Obsidian or another editor (model.js: extra).
+const OBSIDIAN = `---
+name: "Luca's"
+rating: 4
+aliases:
+  - Luca
+cssclasses: [wide]
+related: "[[Other Note]]"
+status:
+nested:
+  a: 1
+  b: [x, y]
+---
+Notes here.
+`;
+
+test('properties the app does not use are kept, in place, through a save', () => {
+  const r = fromMarkdown('places/x.md', OBSIDIAN);
+  assert.deepEqual(r.extra, { aliases: ['Luca'], cssclasses: ['wide'], related: '[[Other Note]]', status: null, nested: { a: 1, b: ['x', 'y'] } });
+  // An edit, as the form makes it: a copy of the place with fields changed.
+  const out = toMarkdown({ ...r, rating: 5 });
+  assert.match(out, /^rating: 5$/m);
+  assert.match(out, /^aliases:\n- Luca$/m);
+  assert.match(out, /^related: "\[\[Other Note\]\]"$/m);
+  assert.match(out, /^status:$/m);
+  const again = fromMarkdown('places/x.md', out);
+  assert.deepEqual(again.extra, r.extra);
+  assert.equal(toMarkdown(again), out);
+});
+
+test('a sync merge keeps the properties from both sides, this device winning', () => {
+  const remote = OBSIDIAN.replace('aliases:\n  - Luca\n', 'source: obsidian\naliases: [Remote]\n');
+  const merged = fromMarkdown('places/x.md', mergeMarkdown('places/x.md', OBSIDIAN, remote));
+  assert.deepEqual(merged.extra.aliases, ['Luca']);
+  assert.equal(merged.extra.source, 'obsidian');
+  assert.equal(merged.extra.related, '[[Other Note]]');
+});
+
+test('created and updated are local date-times to the second, as Obsidian writes them', () => {
+  const local = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/;
+  assert.match(newRestaurant({ name: 'x' }).created, local);
+  assert.match(stamp(), local);
+  // Older files: UTC with milliseconds, read as the same moment in local time.
+  const r = fromMarkdown('places/x.md', '---\nname: X\ncreated: 2018-10-20T11:31:07.000Z\nupdated: 2026-11-06T15:05:33+00:00\n---\n');
+  assert.match(r.created, local);
+  assert.equal(new Date(r.created).getTime(), Date.parse('2018-10-20T11:31:07Z'));
+  assert.equal(new Date(r.updated).getTime(), Date.parse('2026-11-06T15:05:33Z'));
+  assert.match(toMarkdown(r), new RegExp(`^created: ${r.created}$`, 'm'));
+  // Local ones, and dates only, stay as they are.
+  const s = fromMarkdown('places/y.md', '---\nname: Y\ncreated: 2024-01-15\nupdated: 2024-01-15T14:30\n---\n');
+  assert.equal(s.created, '2024-01-15');
+  assert.equal(s.updated, '2024-01-15T14:30');
 });

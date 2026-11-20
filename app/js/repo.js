@@ -2,7 +2,7 @@
 // file store. Also owns image object URLs and ZIP export/import.
 
 import * as store from './store.js';
-import { fromMarkdown, toMarkdown, placePath, fileBase, mediaDir, imagesOf, isPlaceFile, PLACE_DIR, LEGACY_DIR, MEDIA_DIR } from './model.js';
+import { fromMarkdown, toMarkdown, stamp, placePath, fileBase, mediaDir, imagesOf, isPlaceFile, PLACE_DIR, LEGACY_DIR, MEDIA_DIR } from './model.js';
 import { createZip, readZip } from './zip.js';
 import { shrinkImage } from './images.js';
 import { mergePlaces } from './duplicates.js';
@@ -50,7 +50,7 @@ export function knownTags() {
 export async function save(r, { rename = false } = {}) {
   const old = r.path;
   if (!old || rename) r.path = placePath(r, restaurants.keys());
-  r.updated = new Date().toISOString();
+  r.updated = stamp();
   await store.writeFile(r.path, toMarkdown(r));
   if (old && old !== r.path) {
     await store.deleteFile(old);

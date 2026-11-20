@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addressKey, duplicateReasons, findDuplicates, mergePlaces, pairKey } from '../app/js/duplicates.js';
-import { newRestaurant } from '../app/js/model.js';
+import { newRestaurant, stamp } from '../app/js/model.js';
 
 let n = 0;
 const place = (fields) => newRestaurant({ path: `places/p${++n}.md`, ...fields });
@@ -73,7 +73,7 @@ test("merging keeps one place's details and both places' visits, dishes, photos,
   assert.deepEqual(m.visits.map((v) => v.date).sort(), ['2026-04-17T09:30', '2026-11-13T10:00'], 'the same visit only once');
   assert.deepEqual(m.photos.map((p) => p.file), ['media/p1/a.jpg', 'media/p1/b.jpg']);
   assert.equal(m.dishes.length, 1);
-  assert.equal(m.created, '2020-01-01T00:00:00Z', 'the earlier date added');
+  assert.equal(m.created, stamp('2020-01-01T00:00:00Z'), 'the earlier date added, in local time');
   assert.equal(m.toTry, false);
   assert.equal(mergePlaces(place({ name: 'A', toTry: true }), place({ name: 'A', toTry: true })).toTry, true);
   assert.equal(mergePlaces(place({ name: 'A', toTry: true }), place({ name: 'A', visits: [{ date: '2026-01-01' }] })).toTry, false);

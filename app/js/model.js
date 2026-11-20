@@ -95,6 +95,23 @@ export function now() {
   return `${today()}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// A moment as local date and time to the second, e.g. 2026-10-12T19:30:05:
+// the date & time Obsidian shows and edits as one (no milliseconds or zone).
+// `created` and `updated` were UTC with milliseconds before 2.27.0
+// (2026-10-12T23:30:05.123Z): those are read in this local form too.
+export function stamp(value = new Date()) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+// A date as written in a file: one with a zone (Z or +hh:mm) → stamp();
+// others (local already, or a date only) as they are.
+function localStamp(value) {
+  const s = str(value).trim();
+  return /T\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)$/i.test(s) ? stamp(s) || s : s;
+}
+
 // Kinds of places offered when adding or editing one (any other text works too).
 export const PLACE_TYPES = ['Restaurant', 'Fast food', 'Café', 'Bakery', 'Ice cream', 'Bar', 'Pub', 'Brewery', 'Winery',
   'Museum', 'Attraction', 'Park', 'Shop', 'Hotel', 'Other'];
@@ -205,7 +222,20 @@ export function placeGroup(r) {
 export const foursquareURL = (id) => (id ? `https://foursquare.com/v/${encodeURIComponent(id)}` : '');
 
 export function newRestaurant(fields = {}) {
-  return normalize({ created: new Date().toISOString(), ...fields });
+  return normalize({ created: stamp(), ...fields });
+}
+
+// Properties of the place file this app doesn't use (added in Obsidian or
+// another editor: aliases, cssclasses, links…) are kept as they are, in
+// `extra`, and written back when the place is saved.
+const KNOWN = new Set(['path', 'name', 'rating', 'toTry', 'type', 'cuisine', 'address', 'city', 'state', 'country', 'countryCode',
+  'lat', 'lon', 'website', 'phone', 'googlePlaceId', 'foursquareId', 'tags', 'created', 'updated', 'visits', 'dishes', 'photos',
+  'notes', 'extra']);
+function extraOf(d) {
+  const extra = { ...(d.extra && typeof d.extra === 'object' ? d.extra : {}) };
+  for (const [key, value] of Object.entries(d)) if (!KNOWN.has(key) && value !== undefined) extra[key] = value;
+  for (const key of Object.keys(extra)) if (KNOWN.has(key)) delete extra[key];
+  return extra;
 }
 
 export function normalize(d) {
@@ -228,8 +258,8 @@ export function normalize(d) {
     googlePlaceId: str(d.googlePlaceId),
     foursquareId: str(d.foursquareId),
     tags: list(d.tags).map(str).filter(Boolean),
-    created: str(d.created),
-    updated: str(d.updated),
+    created: localStamp(d.created),
+    updated: localStamp(d.updated),
     visits: list(d.visits).filter((v) => v && typeof v === 'object').map((v) => ({
       date: str(v.date),
       rating: rating(v.rating),
@@ -248,6 +278,7 @@ export function normalize(d) {
       .filter((p) => p && typeof p === 'object' && p.file)
       .map((p) => ({ file: str(p.file), title: str(p.title), date: str(p.date) })),
     notes: str(d.notes),
+    extra: extraOf(d),
   };
 }
 
@@ -292,7 +323,9 @@ export function toMarkdown(r) {
     })),
     photos: r.photos.map((p) => ({ file: p.file, title: p.title, date: p.date })),
   };
-  return stringifyFrontMatter(header, r.notes);
+  const extra = Object.entries(r.extra || {}).filter(([key]) => !(key in header));
+  for (const [key, value] of extra) header[key] = value;
+  return stringifyFrontMatter(header, r.notes, { keepEmpty: new Set(extra.map(([key]) => key)) });
 }
 
 // Newest first.
@@ -409,6 +442,7 @@ export function mergeRestaurants(local, remote) {
     image: l.image || m.image,
   }));
   r.photos = unionBy(local.photos, remote.photos, (p) => p.file, (l, p) => ({ ...l, title: l.title || p.title, date: l.date || p.date }));
+  r.extra = { ...(remote.extra || {}), ...(local.extra || {}) };
   return r;
 }
 
