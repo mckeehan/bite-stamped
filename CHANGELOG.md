@@ -20,6 +20,12 @@ The commit of each release is tagged in git with its version, `vX.Y.Z`
 without a commit of their own (1.1.0, 1.1.1, 2.0.1, 2.2.0, 2.3.0, 2.4.0,
 2.12.1), have no tag.
 
+## [2.26.1] - 2026-11-19
+
+### Fixed
+
+- No empty space above the Timeline's calendar where the search box was.
+
 ## [2.26.0] - 2026-11-16
 
 ### Changed

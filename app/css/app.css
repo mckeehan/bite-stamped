@@ -182,6 +182,8 @@ button { font: inherit; color: inherit; }
 /* --- list --- */
 
 .list-tools { display: grid; gap: 10px; margin: 4px 0 14px; }
+/* The Timeline's calendar has no search box: no space for it either. */
+.list-tools:has(> .search-field[hidden]) { margin: 0; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row.spread { justify-content: space-between; }
 /* Two equal columns: iOS gives date and time inputs a minimum width of their
